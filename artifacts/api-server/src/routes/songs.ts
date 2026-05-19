@@ -20,6 +20,10 @@ function formatSong(song: typeof songsTable.$inferSelect) {
   const audioUrl = song.audioObjectPath
     ? `/api/songs/${song.id}/audio`
     : null;
+  let waveformData: number[] | null = null;
+  if (song.waveformData) {
+    try { waveformData = JSON.parse(song.waveformData); } catch { /* ignore */ }
+  }
   return {
     id: song.id,
     title: song.title,
@@ -28,6 +32,7 @@ function formatSong(song: typeof songsTable.$inferSelect) {
     duration: song.duration ?? null,
     audioUrl,
     hasAudio: !!song.audioObjectPath,
+    waveformData,
     createdAt: song.createdAt.toISOString(),
     updatedAt: song.updatedAt.toISOString(),
   };
@@ -186,6 +191,14 @@ router.post("/songs/:id/audio", upload.single("audio"), async (req, res) => {
     }
 
     const duration = req.body.duration ? Number(req.body.duration) : null;
+    const waveformRaw = req.body.waveform ?? null;
+    let waveformData: string | null = null;
+    if (waveformRaw) {
+      try {
+        const parsed = JSON.parse(waveformRaw);
+        if (Array.isArray(parsed)) waveformData = JSON.stringify(parsed);
+      } catch { /* ignore */ }
+    }
 
     const presignedUrl = await objectStorage.getObjectEntityUploadURL();
 
@@ -206,6 +219,7 @@ router.post("/songs/:id/audio", upload.single("audio"), async (req, res) => {
       .set({
         audioObjectPath: normalizedPath,
         ...(duration !== null && { duration }),
+        ...(waveformData !== null && { waveformData }),
         updatedAt: new Date(),
       })
       .where(eq(songsTable.id, id))

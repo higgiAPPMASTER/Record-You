@@ -4,6 +4,7 @@ import { useCreateSong, getListSongsQueryKey, getGetSongStatsQueryKey } from "@w
 import { useQueryClient } from "@tanstack/react-query";
 import { Mic, Square, Pause, Play, Save, Loader2, RefreshCcw, Timer } from "lucide-react";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
+import { extractWaveformPeaks } from "@/lib/waveform";
 import { useMetronome } from "@/hooks/use-metronome";
 import { AudioVisualizer } from "@/components/audio-visualizer";
 import { Button } from "@/components/ui/button";
@@ -59,9 +60,12 @@ export default function Record() {
         data: { title: title.trim(), tags: tags.trim(), notes: notes.trim() },
       });
 
+      const peaks = await extractWaveformPeaks(audioBlob);
+
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
       formData.append("duration", recordingTime.toString());
+      if (peaks.length > 0) formData.append("waveform", JSON.stringify(peaks));
 
       const uploadRes = await fetch(`/api/songs/${song.id}/audio`, { method: "POST", body: formData });
       if (!uploadRes.ok) throw new Error("Audio upload failed");

@@ -9,6 +9,7 @@ export const songsTable = pgTable("songs", {
   tags: text("tags"),
   duration: real("duration"),
   audioObjectPath: text("audio_object_path"),
+  waveformData: text("waveform_data"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

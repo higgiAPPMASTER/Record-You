@@ -24,6 +24,11 @@ export interface Song {
      */
   audioUrl?: string | null;
   hasAudio: boolean;
+  /**
+     * Amplitude peak values (0–1) for waveform visualization
+     * @nullable
+     */
+  waveformData?: number[] | null;
   createdAt: Date;
   updatedAt: Date;
 }

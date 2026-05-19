@@ -10,6 +10,33 @@ import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 
+function WaveformBars({ peaks, isPlaying }: { peaks: number[]; isPlaying: boolean }) {
+  const W = 120;
+  const H = 28;
+  const bars = peaks.length;
+  const barW = W / bars - 0.5;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="flex-shrink-0 opacity-70">
+      {peaks.map((v, i) => {
+        const bh = Math.max(2, v * (H - 2));
+        const y = (H - bh) / 2;
+        const x = i * (W / bars);
+        return (
+          <rect
+            key={i}
+            x={x}
+            y={y}
+            width={barW}
+            height={bh}
+            rx={barW / 2}
+            className={isPlaying ? "fill-primary" : "fill-muted-foreground/50"}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function Home() {
   const { data: songs = [], isLoading } = useListSongs();
   const deleteSong = useDeleteSong();
@@ -220,6 +247,11 @@ export default function Home() {
                       <Calendar className="w-3.5 h-3.5" />
                       {format(new Date(song.createdAt), "MMM d, yyyy")}
                     </div>
+                    {song.waveformData && song.waveformData.length > 0 && (
+                      <div className="ml-auto">
+                        <WaveformBars peaks={song.waveformData} isPlaying={playingId === song.id} />
+                      </div>
+                    )}
                   </div>
 
                   {song.tags && (

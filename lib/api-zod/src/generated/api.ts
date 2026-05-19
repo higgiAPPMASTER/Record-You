@@ -28,6 +28,7 @@ export const ListSongsResponseItem = zod.object({
   "duration": zod.number().nullish().describe('Duration in seconds'),
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
+  "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -62,6 +63,7 @@ export const GetSongStatsResponse = zod.object({
   "duration": zod.number().nullish().describe('Duration in seconds'),
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
+  "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -83,6 +85,7 @@ export const GetSongResponse = zod.object({
   "duration": zod.number().nullish().describe('Duration in seconds'),
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
+  "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -112,6 +115,7 @@ export const UpdateSongResponse = zod.object({
   "duration": zod.number().nullish().describe('Duration in seconds'),
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
+  "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

@@ -163,6 +163,11 @@ components:
           description: URL to stream the audio file
         hasAudio:
           type: boolean
+        waveformData:
+          type: ["array", "null"]
+          items:
+            type: number
+          description: Amplitude peak values (0–1) for waveform visualization
         createdAt:
           type: string
           format: date-time
