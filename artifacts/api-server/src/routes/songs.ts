@@ -232,10 +232,27 @@ router.get("/songs/:id/audio", async (req, res) => {
     const file = await objectStorage.getObjectEntityFile(song.audioObjectPath);
     const response = await objectStorage.downloadObject(file);
     const contentType = response.headers.get("content-type") ?? "audio/webm";
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const total = buffer.length;
+
     res.setHeader("Content-Type", contentType);
+    res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Cache-Control", "public, max-age=3600");
-    const buffer = await response.arrayBuffer();
-    res.send(Buffer.from(buffer));
+
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      const parts = rangeHeader.replace("bytes=", "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+      const chunkSize = end - start + 1;
+      res.status(206);
+      res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+      res.setHeader("Content-Length", chunkSize);
+      res.end(buffer.slice(start, end + 1));
+    } else {
+      res.setHeader("Content-Length", total);
+      res.end(buffer);
+    }
   } catch (err) {
     req.log.error({ err }, "Failed to stream audio");
     res.status(500).json({ error: "Internal server error" });

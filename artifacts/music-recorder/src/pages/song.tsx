@@ -55,9 +55,8 @@ export default function SongDetail() {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch(() => setIsPlaying(false));
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleTimeUpdate = () => {
@@ -173,8 +172,10 @@ export default function SongDetail() {
                 <audio
                   ref={audioRef}
                   src={song.audioUrl}
-                  onTimeUpdate={handleTimeUpdate}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
                   onEnded={() => { setIsPlaying(false); setCurrentTime(0); }}
+                  onTimeUpdate={handleTimeUpdate}
                 />
 
                 <div className="flex items-center gap-6">
