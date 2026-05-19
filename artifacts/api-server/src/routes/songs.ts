@@ -16,9 +16,9 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 const objectStorage = new ObjectStorageService();
 
-function formatSong(song: typeof songsTable.$inferSelect, host: string) {
+function formatSong(song: typeof songsTable.$inferSelect) {
   const audioUrl = song.audioObjectPath
-    ? `https://${host}/api${song.audioObjectPath}`
+    ? `/api/songs/${song.id}/audio`
     : null;
   return {
     id: song.id,
@@ -39,7 +39,7 @@ router.get("/songs", async (req, res) => {
       .select()
       .from(songsTable)
       .orderBy(desc(songsTable.createdAt));
-    res.json(songs.map((s) => formatSong(s, req.headers.host ?? "localhost")));
+    res.json(songs.map((s) => formatSong(s)));
   } catch (err) {
     req.log.error({ err }, "Failed to list songs");
     res.status(500).json({ error: "Internal server error" });
@@ -61,7 +61,7 @@ router.post("/songs", async (req, res) => {
         tags: parsed.data.tags ?? null,
       })
       .returning();
-    res.status(201).json(formatSong(song, req.headers.host ?? "localhost"));
+    res.status(201).json(formatSong(song));
   } catch (err) {
     req.log.error({ err }, "Failed to create song");
     res.status(500).json({ error: "Internal server error" });
@@ -84,12 +84,11 @@ router.get("/songs/stats", async (req, res) => {
       .orderBy(desc(songsTable.createdAt))
       .limit(5);
 
-    const host = req.headers.host ?? "localhost";
     res.json({
       totalSongs: stats.totalSongs ?? 0,
       totalDuration: Number(stats.totalDuration ?? 0),
       songsWithAudio: stats.songsWithAudio ?? 0,
-      recentSongs: recentSongs.map((s) => formatSong(s, host)),
+      recentSongs: recentSongs.map((s) => formatSong(s)),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get song stats");
@@ -112,7 +111,7 @@ router.get("/songs/:id", async (req, res) => {
       res.status(404).json({ error: "Song not found" });
       return;
     }
-    res.json(formatSong(song, req.headers.host ?? "localhost"));
+    res.json(formatSong(song));
   } catch (err) {
     req.log.error({ err }, "Failed to get song");
     res.status(500).json({ error: "Internal server error" });
@@ -141,7 +140,7 @@ router.patch("/songs/:id", async (req, res) => {
       res.status(404).json({ error: "Song not found" });
       return;
     }
-    res.json(formatSong(updated, req.headers.host ?? "localhost"));
+    res.json(formatSong(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to update song");
     res.status(500).json({ error: "Internal server error" });
@@ -212,7 +211,7 @@ router.post("/songs/:id/audio", upload.single("audio"), async (req, res) => {
       .where(eq(songsTable.id, id))
       .returning();
 
-    res.json(formatSong(updated, req.headers.host ?? "localhost"));
+    res.json(formatSong(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to upload audio");
     res.status(500).json({ error: "Internal server error" });
