@@ -46,7 +46,15 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       setAudioBlob(null);
       setRecordingTime(0);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 48000,
+          channelCount: 2,
+        },
+      });
       streamRef.current = stream;
 
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -58,7 +66,12 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       source.connect(analyser);
       setAnalyserNode(analyser);
 
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+        .find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
+      const mediaRecorder = new MediaRecorder(stream, {
+        ...(mimeType ? { mimeType } : {}),
+        audioBitsPerSecond: 192000,
+      });
       mediaRecorderRef.current = mediaRecorder;
 
       const chunks: BlobPart[] = [];

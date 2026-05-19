@@ -205,7 +205,12 @@ export function useAudioMixer(): UseAudioMixerResult {
     gain1.connect(dest);
     gain2.connect(dest);
 
-    const mediaRecorder = new MediaRecorder(dest.stream);
+    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+      .find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
+    const mediaRecorder = new MediaRecorder(dest.stream, {
+      ...(mimeType ? { mimeType } : {}),
+      audioBitsPerSecond: 192000,
+    });
     mediaRecorderRef.current = mediaRecorder;
 
     const chunks: BlobPart[] = [];
