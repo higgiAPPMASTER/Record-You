@@ -1,44 +1,45 @@
 import { useState, useRef } from "react";
 import { getTabs, saveTab, deleteTab, type SavedTab } from "@/lib/tabs-storage";
 import { CHORDS } from "@/lib/chords";
+import { transposeText, semitoneLabel } from "@/lib/transpose";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ChordDiagramSVG } from "@/components/chord-diagram";
 import {
-  Music2, Plus, Trash2, ChevronDown, ChevronUp, Upload, X, ExternalLink, FileText,
+  Music2, Plus, Trash2, ChevronDown, ChevronUp, Upload, X,
+  ExternalLink, FileText, ArrowUp, ArrowDown, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-// Detect chord names in a line of tab text (not tab lines e.g. e|---)
-const CHORD_RE = /\b([A-G][#b]?(?:maj7?|min|m7?|sus[24]|add9|dim|aug|[79]|11|13)?)\b/g;
 const TAB_LINE_RE = /^[EADGBe]\|/;
 
 function isTabLine(line: string) {
   return TAB_LINE_RE.test(line.trim());
 }
 
-function TabRenderer({ content }: { content: string }) {
+function TabRenderer({ content, semitones }: { content: string; semitones: number }) {
   const [hoveredChord, setHoveredChord] = useState<string | null>(null);
-
-  const lines = content.split("\n");
+  const transposed = transposeText(content, semitones);
+  const lines = transposed.split("\n");
 
   return (
     <div className="font-mono text-sm leading-6 whitespace-pre relative">
       {lines.map((line, i) => {
         if (isTabLine(line)) {
-          return (
-            <div key={i} className="text-primary/90 tracking-wide">{line}</div>
-          );
+          return <div key={i} className="text-primary/90 tracking-wide">{line}</div>;
         }
 
-        // Check if line contains only chord names (chord line)
         const trimmed = line.trim();
-        const isChordLine = trimmed.length > 0 &&
+        const isChordLine =
+          trimmed.length > 0 &&
           !trimmed.startsWith("#") &&
           !trimmed.startsWith("//") &&
-          trimmed.split(/\s+/).every((token) => /^[A-G][#b]?(?:maj7?|min|m7?|sus[24]|add9|dim|aug|[79]|11|13)?$/.test(token));
+          !trimmed.startsWith("[") &&
+          trimmed.split(/\s+/).every((token) =>
+            /^[A-G][#b]?(?:maj7|maj|min|m7|m9|sus[24]?|add9?|dim|aug|m|[79]|11|13)?$/.test(token)
+          );
 
         if (isChordLine) {
           return (
@@ -49,7 +50,7 @@ function TabRenderer({ content }: { content: string }) {
                 return (
                   <span
                     key={j}
-                    className={cn("cursor-pointer hover:underline", chord && "text-primary")}
+                    className={cn("cursor-pointer", chord && "hover:underline text-primary")}
                     onMouseEnter={() => chord && setHoveredChord(token)}
                     onMouseLeave={() => setHoveredChord(null)}
                   >
@@ -61,23 +62,18 @@ function TabRenderer({ content }: { content: string }) {
           );
         }
 
-        // Lyrics / prose lines — highlight embedded chords
         if (trimmed.startsWith("#") || trimmed.startsWith("[")) {
-          return (
-            <div key={i} className="text-muted-foreground/60 italic">{line}</div>
-          );
+          return <div key={i} className="text-muted-foreground/60 italic">{line}</div>;
         }
 
         return <div key={i} className="text-foreground/80">{line}</div>;
       })}
 
-      {/* Floating chord pop-over */}
       {hoveredChord && (() => {
         const chord = CHORDS.find((c) => c.full === hoveredChord || c.name === hoveredChord);
         if (!chord) return null;
         return (
-          <div className="fixed z-50 pointer-events-none"
-            style={{ bottom: "2rem", right: "2rem" }}>
+          <div className="fixed z-50 pointer-events-none" style={{ bottom: "2rem", right: "2rem" }}>
             <div className="bg-card border border-primary/30 rounded-xl p-4 shadow-xl flex flex-col items-center gap-2">
               <span className="text-sm font-bold font-mono">{chord.full}</span>
               <ChordDiagramSVG chord={chord} size={1.2} />
@@ -89,8 +85,59 @@ function TabRenderer({ content }: { content: string }) {
   );
 }
 
+function TransposeControl({
+  semitones,
+  onChange,
+}: {
+  semitones: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground">Transpose</span>
+      <div className="flex items-center gap-1 bg-muted/40 rounded-lg px-1 py-0.5 border border-border/50">
+        <button
+          onClick={() => onChange(semitones - 1)}
+          className="p-1 rounded hover:bg-primary/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-30"
+          disabled={semitones <= -11}
+          title="Down 1 semitone"
+        >
+          <ArrowDown className="w-3 h-3" />
+        </button>
+        <span
+          className={cn(
+            "text-xs font-mono w-20 text-center font-semibold transition-colors",
+            semitones === 0 ? "text-muted-foreground" : "text-primary"
+          )}
+        >
+          {semitoneLabel(semitones)}
+        </span>
+        <button
+          onClick={() => onChange(semitones + 1)}
+          className="p-1 rounded hover:bg-primary/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-30"
+          disabled={semitones >= 11}
+          title="Up 1 semitone"
+        >
+          <ArrowUp className="w-3 h-3" />
+        </button>
+      </div>
+      {semitones !== 0 && (
+        <button
+          onClick={() => onChange(0)}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          title="Reset to original key"
+        >
+          <RotateCcw className="w-3 h-3" />
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TabCard({ tab, onDelete }: { tab: SavedTab; onDelete: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [semitones, setSemitones] = useState(0);
 
   return (
     <div className="border border-border/60 rounded-xl bg-card overflow-hidden">
@@ -102,6 +149,11 @@ function TabCard({ tab, onDelete }: { tab: SavedTab; onDelete: () => void }) {
             <p className="text-xs text-muted-foreground truncate">{tab.artist}</p>
           )}
         </div>
+        {semitones !== 0 && (
+          <span className="text-[10px] font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-full flex-shrink-0">
+            {semitones > 0 ? "+" : ""}{semitones}st
+          </span>
+        )}
         <span className="text-[10px] text-muted-foreground flex-shrink-0">
           {new Date(tab.createdAt).toLocaleDateString()}
         </span>
@@ -120,8 +172,20 @@ function TabCard({ tab, onDelete }: { tab: SavedTab; onDelete: () => void }) {
       </div>
 
       {expanded && (
-        <div className="border-t border-border/50 px-4 py-4 bg-background/30 overflow-x-auto">
-          <TabRenderer content={tab.content} />
+        <div className="border-t border-border/50 bg-background/30">
+          {/* Transpose bar */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-card/40">
+            <TransposeControl semitones={semitones} onChange={setSemitones} />
+            {semitones !== 0 && (
+              <span className="text-[10px] text-muted-foreground">
+                Tab lines stay unchanged — only chord names shift
+              </span>
+            )}
+          </div>
+          {/* Tab content */}
+          <div className="px-4 py-4 overflow-x-auto">
+            <TabRenderer content={tab.content} semitones={semitones} />
+          </div>
         </div>
       )}
     </div>
@@ -136,6 +200,7 @@ export default function Tabs() {
   const [artist, setArtist] = useState("");
   const [content, setContent] = useState("");
   const [preview, setPreview] = useState(false);
+  const [previewSemitones] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = () => setTabs(getTabs());
@@ -185,7 +250,7 @@ export default function Tabs() {
             <h1 className="text-3xl font-bold tracking-tight">My Tabs</h1>
           </div>
           <p className="text-muted-foreground text-sm">
-            Paste tabs from Ultimate Guitar or any text source. Chord names highlight automatically.
+            Paste tabs from Ultimate Guitar. Transpose any tab up or down instantly.
           </p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
@@ -198,12 +263,7 @@ export default function Tabs() {
             <ExternalLink className="w-3.5 h-3.5" />
             Ultimate Guitar
           </a>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fileRef.current?.click()}
-            className="gap-1.5"
-          >
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-1.5">
             <Upload className="w-3.5 h-3.5" />
             Upload .txt
           </Button>
@@ -242,7 +302,9 @@ export default function Tabs() {
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs text-muted-foreground">Tab content — paste from Ultimate Guitar</label>
+              <label className="text-xs text-muted-foreground">
+                Tab content — paste from Ultimate Guitar
+              </label>
               {content && (
                 <button
                   onClick={() => setPreview((v) => !v)}
@@ -254,7 +316,7 @@ export default function Tabs() {
             </div>
             {preview && content ? (
               <div className="min-h-40 max-h-96 overflow-y-auto rounded-lg border border-border/60 bg-background/40 p-4">
-                <TabRenderer content={content} />
+                <TabRenderer content={content} semitones={previewSemitones} />
               </div>
             ) : (
               <Textarea
@@ -267,7 +329,11 @@ export default function Tabs() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setShowForm(false); setContent(""); setTitle(""); setArtist(""); }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowForm(false); setContent(""); setTitle(""); setArtist(""); }}
+            >
               Cancel
             </Button>
             <Button size="sm" onClick={handleSave} disabled={!content.trim()}>
@@ -282,7 +348,9 @@ export default function Tabs() {
         <div className="text-center py-24 text-muted-foreground">
           <Music2 className="w-12 h-12 mx-auto mb-4 opacity-20" />
           <p className="font-medium mb-1">No tabs saved yet</p>
-          <p className="text-sm">Paste a tab from Ultimate Guitar or upload a .txt file to get started.</p>
+          <p className="text-sm">
+            Paste a tab from Ultimate Guitar or upload a .txt file to get started.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
