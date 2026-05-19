@@ -1,6 +1,6 @@
-# [Project name]
+# Record You
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A personal music recording web app where musicians can record songs, manage a library, mix tracks, and use tools like a metronome, chromatic tuner, and chord library.
 
 ## Run & Operate
 

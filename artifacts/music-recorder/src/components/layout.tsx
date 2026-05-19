@@ -20,7 +20,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="h-16 flex items-center px-6 border-b border-border">
             <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary tracking-tight">
               <Disc3 className="w-6 h-6 animate-pulse-slow" />
-              <span>Track</span>
+              <span>Record You</span>
             </Link>
           </div>
 
