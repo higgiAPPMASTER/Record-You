@@ -17,3 +17,9 @@ id = "m2tjUoCGGB9pMMcczYZGO"
 uri = "file://screenshots/current-server.jpg"
 type = "image"
 title = "What the server is serving right now (just screenshotted)"
+
+[[outputs]]
+id = "uL1p6748bpPV3P5tjpkqJ"
+uri = "file://screenshots/web-app.jpg"
+type = "image"
+title = "Your web Record You app — fully working"
