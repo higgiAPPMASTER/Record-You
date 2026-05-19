@@ -22,7 +22,13 @@ A personal music recording web app where musicians can record songs, manage a li
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/music-recorder/` — React + Vite web frontend (port 22278, path `/`)
+- `artifacts/api-server/` — Express 5 API (port 8080, path `/api`)
+- `artifacts/record-you-mobile/` — Expo React Native mobile app (port 22215, path `/record-you-mobile`)
+- `lib/db/` — Drizzle ORM schema, source of truth: `lib/db/src/schema.ts`
+- `lib/api-spec/openapi.yaml` — OpenAPI spec, source of truth for all API contracts
+- `lib/api-client-react/` — Generated React Query hooks (auto-generated, do not edit)
+- `lib/api-zod/` — Generated Zod schemas (auto-generated, do not edit)
 
 ## Architecture decisions
 

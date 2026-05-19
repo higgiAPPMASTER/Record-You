@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 function WaveformBars({ peaks, isPlaying }: { peaks: number[]; isPlaying: boolean }) {
   const W = 120;
@@ -41,6 +42,7 @@ export default function Home() {
   const { data: songs = [], isLoading } = useListSongs();
   const deleteSong = useDeleteSong();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -70,8 +72,12 @@ export default function Home() {
     } else {
       if (audioRef.current) {
         audioRef.current.src = audioUrl;
-        audioRef.current.play();
-        setPlayingId(songId);
+        audioRef.current.play().then(() => {
+          setPlayingId(songId);
+        }).catch(() => {
+          setPlayingId(null);
+          toast({ title: "Playback failed", description: "Could not play this track.", variant: "destructive" });
+        });
       }
     }
   };

@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "RZ2ZwUbP4mYklvCnyS5VC"
+uri = "file://artifacts/record-you-mobile/assets/images/icon.png"
+type = "image"
+title = "generated_image"

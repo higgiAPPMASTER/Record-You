@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useCreateSong, getListSongsQueryKey, getGetSongStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,8 +36,21 @@ export default function Record() {
     pauseRecording,
     resumeRecording,
     analyserNode,
+    error: recorderError,
     reset,
   } = useAudioRecorder();
+
+  useEffect(() => {
+    if (!recorderError) return;
+    const isPermission = recorderError.name === "NotAllowedError" || recorderError.name === "PermissionDeniedError";
+    toast({
+      title: isPermission ? "Microphone blocked" : "Recording failed",
+      description: isPermission
+        ? "Allow microphone access in your browser and try again."
+        : recorderError.message,
+      variant: "destructive",
+    });
+  }, [recorderError]);
 
   const { isRunning: metronomeOn, bpm, setBpm, beat, toggle: toggleMetronome, tapTempo } = useMetronome();
 

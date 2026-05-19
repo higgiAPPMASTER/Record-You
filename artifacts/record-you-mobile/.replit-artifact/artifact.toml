@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/record-you-mobile/"
+title = "Record You Mobile"
+version = "1.0.0"
+id = "artifacts/record-you-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/record-you-mobile/" ]
+localPort = 22215
+
+[services.development]
+run = "pnpm --filter @workspace/record-you-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/record-you-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/record-you-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "22215"
+BASE_PATH = "/record-you-mobile/"
