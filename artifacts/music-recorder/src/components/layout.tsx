@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic, Library, Settings, Disc3 } from "lucide-react";
+import { Mic, Library, Disc3, SlidersHorizontal } from "lucide-react";
 import { useGetSongStats } from "@workspace/api-client-react";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +32,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/record" className={`flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${location === '/record' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
               <Mic className="w-5 h-5" />
               Studio
+            </Link>
+            <Link href="/mixer" className={`flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${location === '/mixer' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+              <SlidersHorizontal className="w-5 h-5" />
+              Mixer
             </Link>
           </nav>
         </div>

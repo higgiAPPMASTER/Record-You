@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Record from "@/pages/record";
 import SongDetail from "@/pages/song";
+import Mixer from "@/pages/mixer";
 
 const queryClient = new QueryClient();
 
@@ -17,6 +18,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/record" component={Record} />
         <Route path="/song/:id" component={SongDetail} />
+        <Route path="/mixer" component={Mixer} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
