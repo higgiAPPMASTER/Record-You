@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useListSongs, useCreateSong, getListSongsQueryKey, getGetSongStatsQueryKey } from "@workspace/api-client-react";
 import type { Song as ApiSong } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Square, Disc, Loader2, Check, Volume2, SlidersHorizontal } from "lucide-react";
+import { Play, Square, Disc, Loader2, Check, Volume2, SlidersHorizontal, Repeat } from "lucide-react";
 import { useAudioMixer } from "@/hooks/use-audio-mixer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,8 +97,10 @@ export default function Mixer() {
     recordedBlob,
     track1Volume,
     track2Volume,
+    loop,
     setTrack1Volume,
     setTrack2Volume,
+    setLoop,
     loadTracks,
     play,
     stop,
@@ -360,6 +362,20 @@ export default function Mixer() {
                     <Play className="w-4 h-4" />
                     Preview Mix
                   </Button>
+                  <button
+                    data-testid="button-loop-toggle"
+                    onClick={() => setLoop(!loop)}
+                    title={loop ? "Loop on" : "Loop off"}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors",
+                      loop
+                        ? "bg-primary/15 border-primary text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    )}
+                  >
+                    <Repeat className="w-3.5 h-3.5" />
+                    Loop
+                  </button>
                   <Button
                     data-testid="button-record-mix"
                     onClick={startRecording}

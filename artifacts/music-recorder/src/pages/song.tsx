@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useGetSong, useUpdateSong, useDeleteSong, getGetSongQueryKey, getListSongsQueryKey, getGetSongStatsQueryKey } from "@workspace/api-client-react";
+import {
+  useGetSong, useUpdateSong, useDeleteSong,
+  getGetSongQueryKey, getListSongsQueryKey, getGetSongStatsQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2 } from "lucide-react";
+import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export default function SongDetail() {
   const [, params] = useRoute("/song/:id");
@@ -18,20 +24,21 @@ export default function SongDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: song, isLoading } = useGetSong(id, { query: { enabled: !!id, queryKey: getGetSongQueryKey(id) } });
+  const { data: song, isLoading } = useGetSong(id, {
+    query: { enabled: !!id, queryKey: getGetSongQueryKey(id) },
+  });
   const updateSong = useUpdateSong();
   const deleteSong = useDeleteSong();
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Edit states
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [notes, setNotes] = useState("");
-
   const initializedForId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -45,7 +52,6 @@ export default function SongDetail() {
 
   const togglePlay = () => {
     if (!audioRef.current || !song?.audioUrl) return;
-    
     if (isPlaying) {
       audioRef.current.pause();
     } else {
@@ -55,9 +61,7 @@ export default function SongDetail() {
   };
 
   const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
+    if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,29 +72,39 @@ export default function SongDetail() {
     }
   };
 
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+  };
+
+  const handleDownload = async () => {
+    if (!song?.audioUrl) return;
+    const res = await fetch(song.audioUrl);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const formatDuration = (seconds: number | null | undefined) => {
     if (!seconds) return "0:00";
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   const handleSave = async () => {
     if (!title.trim()) return;
     try {
-      await updateSong.mutateAsync({
-        id,
-        data: {
-          title: title.trim(),
-          tags: tags.trim(),
-          notes: notes.trim(),
-        }
-      });
+      await updateSong.mutateAsync({ id, data: { title: title.trim(), tags: tags.trim(), notes: notes.trim() } });
       queryClient.invalidateQueries({ queryKey: getGetSongQueryKey(id) });
       queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
       setIsEditing(false);
       toast({ title: "Track updated" });
-    } catch (e) {
+    } catch {
       toast({ title: "Error updating track", variant: "destructive" });
     }
   };
@@ -106,16 +120,22 @@ export default function SongDetail() {
   };
 
   if (isLoading) {
-    return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  if (!song) {
-    return <div className="p-8">Song not found</div>;
-  }
+  if (!song) return <div className="p-8">Song not found</div>;
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <Button variant="ghost" onClick={() => setLocation("/")} className="mb-6 -ml-4 text-muted-foreground hover:text-foreground">
+      <Button
+        variant="ghost"
+        onClick={() => setLocation("/")}
+        className="mb-6 -ml-4 text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Library
       </Button>
@@ -126,9 +146,9 @@ export default function SongDetail() {
           <Card className="p-6 bg-card/80 border-border backdrop-blur-sm">
             <div className="flex justify-between items-start mb-6">
               {isEditing ? (
-                <Input 
-                  value={title} 
-                  onChange={e => setTitle(e.target.value)} 
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                   className="text-3xl font-bold h-auto py-2 px-3 -ml-3 bg-background/50 border-primary/50"
                   autoFocus
                 />
@@ -148,29 +168,30 @@ export default function SongDetail() {
               </div>
             </div>
 
-            {song.hasAudio && song.audioUrl && (
-              <div className="bg-background/80 rounded-2xl p-6 border border-border shadow-inner">
-                <audio 
-                  ref={audioRef} 
-                  src={song.audioUrl} 
+            {song.hasAudio && song.audioUrl ? (
+              <div className="bg-background/80 rounded-2xl p-6 border border-border shadow-inner space-y-4">
+                <audio
+                  ref={audioRef}
+                  src={song.audioUrl}
                   onTimeUpdate={handleTimeUpdate}
-                  onEnded={() => setIsPlaying(false)}
+                  onEnded={() => { setIsPlaying(false); setCurrentTime(0); }}
                 />
-                
+
                 <div className="flex items-center gap-6">
-                  <Button 
-                    size="icon" 
+                  <Button
+                    data-testid="button-play-song"
+                    size="icon"
                     className="w-16 h-16 rounded-full flex-shrink-0 shadow-lg shadow-primary/20"
                     onClick={togglePlay}
                   >
                     {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 translate-x-[2px]" />}
                   </Button>
-                  
+
                   <div className="flex-1 space-y-2">
-                    <input 
-                      type="range" 
-                      min={0} 
-                      max={song.duration || 0} 
+                    <input
+                      type="range"
+                      min={0}
+                      max={song.duration || 0}
                       value={currentTime}
                       onChange={handleSeek}
                       className="w-full accent-primary h-2 bg-muted rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
@@ -181,9 +202,31 @@ export default function SongDetail() {
                     </div>
                   </div>
                 </div>
+
+                {/* Playback speed */}
+                <div className="flex items-center gap-3 pt-2 border-t border-border/50">
+                  <Gauge className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground font-medium">Speed</span>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {SPEEDS.map((speed) => (
+                      <button
+                        key={speed}
+                        data-testid={`button-speed-${speed}`}
+                        onClick={() => handleSpeedChange(speed)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md text-xs font-mono font-semibold border transition-colors",
+                          playbackSpeed === speed
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                        )}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            )}
-            {!song.hasAudio && (
+            ) : (
               <div className="bg-muted/50 rounded-2xl p-6 border border-border text-center text-muted-foreground text-sm">
                 No audio recorded for this track.
               </div>
@@ -195,9 +238,9 @@ export default function SongDetail() {
               <h3 className="font-semibold text-lg">Notes & Lyrics</h3>
             </div>
             {isEditing ? (
-              <Textarea 
-                value={notes} 
-                onChange={e => setNotes(e.target.value)} 
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 className="min-h-[300px] bg-background/50 border-primary/50 text-base leading-relaxed resize-none"
               />
             ) : (
@@ -213,16 +256,16 @@ export default function SongDetail() {
           <Card className="p-6 bg-card border-border">
             <h3 className="font-semibold mb-4 text-sm uppercase tracking-wider text-muted-foreground">Tags</h3>
             {isEditing ? (
-              <Input 
-                value={tags} 
-                onChange={e => setTags(e.target.value)} 
+              <Input
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
                 placeholder="acoustic, draft..."
                 className="bg-background/50 border-primary/50 font-mono text-sm"
               />
             ) : (
               <div className="flex flex-wrap gap-2">
                 {song.tags ? (
-                  song.tags.split(',').map(tag => (
+                  song.tags.split(",").map((tag) => (
                     <Badge key={tag} variant="secondary" className="font-mono bg-background">
                       {tag.trim()}
                     </Badge>
@@ -245,12 +288,30 @@ export default function SongDetail() {
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full">
+              <Button data-testid="button-edit" onClick={() => setIsEditing(true)} variant="outline" className="w-full">
                 Edit Details
               </Button>
             )}
+
+            {song.hasAudio && song.audioUrl && (
+              <Button
+                data-testid="button-download"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleDownload}
+              >
+                <Download className="w-4 h-4" />
+                Download Audio
+              </Button>
+            )}
+
             <div className="h-px bg-border my-2" />
-            <Button onClick={handleDelete} variant="destructive" className="w-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors">
+            <Button
+              data-testid="button-delete"
+              onClick={handleDelete}
+              variant="destructive"
+              className="w-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+            >
               <Trash className="w-4 h-4 mr-2" /> Delete Track
             </Button>
           </Card>

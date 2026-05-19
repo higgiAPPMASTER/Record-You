@@ -15,8 +15,10 @@ interface UseAudioMixerResult {
   recordedBlob: Blob | null;
   track1Volume: number;
   track2Volume: number;
+  loop: boolean;
   setTrack1Volume: (v: number) => void;
   setTrack2Volume: (v: number) => void;
+  setLoop: (v: boolean) => void;
   loadTracks: (track1: Track, track2: Track) => Promise<void>;
   play: () => void;
   stop: () => void;
@@ -33,6 +35,7 @@ export function useAudioMixer(): UseAudioMixerResult {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [track1Volume, setTrack1Volume] = useState(0.8);
   const [track2Volume, setTrack2Volume] = useState(0.8);
+  const [loop, setLoop] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -45,20 +48,31 @@ export function useAudioMixer(): UseAudioMixerResult {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  const loopRef = useRef<boolean>(loop);
+  const stateRef = useRef<MixerState>("idle");
+  const playTimeoutRef = useRef<number | null>(null);
 
-  const clearTimer = () => {
+  // Keep refs in sync
+  loopRef.current = loop;
+  stateRef.current = state;
+
+  const clearTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  };
+    if (playTimeoutRef.current) {
+      clearTimeout(playTimeoutRef.current);
+      playTimeoutRef.current = null;
+    }
+  }, []);
 
-  const startTimer = () => {
-    startTimeRef.current = Date.now() - elapsedTime * 1000;
+  const startTimer = useCallback(() => {
+    startTimeRef.current = Date.now();
     timerRef.current = window.setInterval(() => {
       setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
     }, 200);
-  };
+  }, []);
 
   const fetchBuffer = async (ctx: AudioContext, url: string): Promise<AudioBuffer> => {
     const res = await fetch(url);
@@ -133,34 +147,50 @@ export function useAudioMixer(): UseAudioMixerResult {
     source2Ref.current = null;
   }, []);
 
-  const play = useCallback(() => {
+  // Internal play that can restart itself when looping
+  const playOnce = useCallback(() => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     stopSources();
     createSources();
     source1Ref.current!.start(0);
     source2Ref.current!.start(0);
-    setState("playing");
-    setElapsedTime(0);
-    startTimer();
 
     const longestDuration = Math.max(
       buffer1Ref.current?.duration ?? 0,
       buffer2Ref.current?.duration ?? 0
     );
-    setTimeout(() => {
-      clearTimer();
-      setState("ready");
-      setElapsedTime(0);
+
+    playTimeoutRef.current = window.setTimeout(() => {
+      if (stateRef.current === "playing") {
+        if (loopRef.current) {
+          // restart for another loop
+          setElapsedTime(0);
+          startTimeRef.current = Date.now();
+          playOnce();
+        } else {
+          clearTimer();
+          setState("ready");
+          setElapsedTime(0);
+        }
+      }
     }, longestDuration * 1000);
-  }, [createSources, stopSources]);
+  }, [createSources, stopSources, clearTimer, startTimer]);
+
+  const play = useCallback(() => {
+    setState("playing");
+    setElapsedTime(0);
+    clearTimer();
+    startTimer();
+    playOnce();
+  }, [playOnce, clearTimer, startTimer]);
 
   const stop = useCallback(() => {
     stopSources();
     clearTimer();
     setState("ready");
     setElapsedTime(0);
-  }, [stopSources]);
+  }, [stopSources, clearTimer]);
 
   const startRecording = useCallback(() => {
     const ctx = audioCtxRef.current;
@@ -200,13 +230,13 @@ export function useAudioMixer(): UseAudioMixerResult {
       buffer1Ref.current?.duration ?? 0,
       buffer2Ref.current?.duration ?? 0
     );
-    setTimeout(() => {
+    playTimeoutRef.current = window.setTimeout(() => {
       if (mediaRecorderRef.current?.state === "recording") {
         mediaRecorderRef.current.stop();
       }
       clearTimer();
     }, longestDuration * 1000 + 200);
-  }, [createSources, stopSources]);
+  }, [createSources, stopSources, clearTimer, startTimer]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording") {
@@ -214,7 +244,7 @@ export function useAudioMixer(): UseAudioMixerResult {
     }
     stopSources();
     clearTimer();
-  }, [stopSources]);
+  }, [stopSources, clearTimer]);
 
   const reset = useCallback(() => {
     stopSources();
@@ -233,7 +263,7 @@ export function useAudioMixer(): UseAudioMixerResult {
     setMixDuration(0);
     setError(null);
     setState("idle");
-  }, [stopSources]);
+  }, [stopSources, clearTimer]);
 
   return {
     state,
@@ -242,8 +272,10 @@ export function useAudioMixer(): UseAudioMixerResult {
     recordedBlob,
     track1Volume,
     track2Volume,
+    loop,
     setTrack1Volume,
     setTrack2Volume,
+    setLoop,
     loadTracks,
     play,
     stop,
