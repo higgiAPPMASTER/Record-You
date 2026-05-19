@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic, Library, Disc3, SlidersHorizontal, Guitar } from "lucide-react";
+import { Mic, Library, Disc3, SlidersHorizontal, Guitar, BookOpen } from "lucide-react";
 import { useGetSongStats } from "@workspace/api-client-react";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +40,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/tuner" className={`flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${location === '/tuner' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
               <Guitar className="w-5 h-5" />
               Tuner
+            </Link>
+            <Link href="/chords" className={`flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${location === '/chords' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+              <BookOpen className="w-5 h-5" />
+              Chords
             </Link>
           </nav>
         </div>

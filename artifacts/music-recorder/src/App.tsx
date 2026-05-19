@@ -9,6 +9,7 @@ import Record from "@/pages/record";
 import SongDetail from "@/pages/song";
 import Mixer from "@/pages/mixer";
 import Tuner from "@/pages/tuner";
+import Chords from "@/pages/chords";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ function Router() {
         <Route path="/song/:id" component={SongDetail} />
         <Route path="/mixer" component={Mixer} />
         <Route path="/tuner" component={Tuner} />
+        <Route path="/chords" component={Chords} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
