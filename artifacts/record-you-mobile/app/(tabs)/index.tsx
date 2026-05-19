@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Mic, Pause, Play, Trash2 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -238,7 +238,7 @@ export default function LibraryScreen() {
       {songs.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIcon}>
-            <Feather name="mic" size={32} color={colors.primary} />
+            <Mic size={32} color={colors.primary} />
           </View>
           <Text style={styles.emptyTitle}>No tracks yet</Text>
           <Text style={styles.emptyText}>
@@ -289,11 +289,12 @@ export default function LibraryScreen() {
                         size="small"
                         color={isPlaying ? "#fff" : colors.primary}
                       />
+                    ) : isPlaying ? (
+                      <Pause size={22} color="#fff" />
                     ) : (
-                      <Feather
-                        name={isPlaying ? "pause" : "play"}
+                      <Play
                         size={22}
-                        color={isPlaying ? "#fff" : item.hasAudio ? colors.primary : colors.mutedForeground}
+                        color={item.hasAudio ? colors.primary : colors.mutedForeground}
                       />
                     )}
                   </Pressable>
@@ -324,7 +325,7 @@ export default function LibraryScreen() {
                         handleDelete(item.id, item.title);
                       }}
                     >
-                      <Feather name="trash-2" size={18} color={colors.destructive} />
+                      <Trash2 size={18} color={colors.destructive} />
                     </Pressable>
                   </View>
                 </View>

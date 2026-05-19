@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Save, Trash2, Pause, Play } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -307,13 +307,13 @@ export default function SongDetailScreen() {
     >
       <View style={styles.topBar}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <ArrowLeft size={22} color={colors.foreground} />
         </Pressable>
         <Text style={styles.topBarTitle} numberOfLines={1}>
           {song.title}
         </Text>
         <Pressable style={styles.deleteBtn} onPress={handleDelete}>
-          <Feather name="trash-2" size={20} color={colors.destructive} />
+          <Trash2 size={20} color={colors.destructive} />
         </Pressable>
       </View>
 
@@ -328,12 +328,10 @@ export default function SongDetailScreen() {
               <Pressable style={styles.playBtn} onPress={handlePlayPause}>
                 {isLoadingAudio ? (
                   <ActivityIndicator color="#fff" size="small" />
+                ) : isPlaying ? (
+                  <Pause size={28} color="#fff" />
                 ) : (
-                  <Feather
-                    name={isPlaying ? "pause" : "play"}
-                    size={28}
-                    color="#fff"
-                  />
+                  <Play size={28} color="#fff" />
                 )}
               </Pressable>
               <View style={styles.durationRow}>
@@ -394,7 +392,7 @@ export default function SongDetailScreen() {
           {isSaving ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Feather name="save" size={18} color="#fff" />
+            <Save size={18} color="#fff" />
           )}
           <Text style={styles.saveBtnText}>
             {isSaving ? "Saving..." : "Save Changes"}

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Mic, Pause, Play, RotateCcw, Save, Square } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
@@ -163,13 +163,13 @@ export default function StudioScreen() {
       } as any);
       formData.append("duration", elapsed.toString());
 
-      const apiBase = process.env.EXPO_PUBLIC_DOMAIN
-        ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-        : "";
-      const uploadRes = await fetch(`${apiBase}/api/songs/${song.id}/audio`, {
-        method: "POST",
-        body: formData,
-      });
+      if (!process.env.EXPO_PUBLIC_DOMAIN) {
+        throw new Error("EXPO_PUBLIC_DOMAIN is not configured");
+      }
+      const uploadRes = await fetch(
+        `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/songs/${song.id}/audio`,
+        { method: "POST", body: formData },
+      );
 
       if (!uploadRes.ok) throw new Error("Upload failed");
 
@@ -328,8 +328,8 @@ export default function StudioScreen() {
       ? colors.primary
       : colors.primary;
 
-  const recIcon =
-    state === "recording" ? "pause" : state === "paused" ? "play" : "mic";
+  const RecIcon =
+    state === "recording" ? Pause : state === "paused" ? Play : Mic;
 
   return (
     <KeyboardAvoidingView
@@ -368,7 +368,7 @@ export default function StudioScreen() {
         <View style={styles.controlRow}>
           {(state === "recording" || state === "paused") && (
             <Pressable style={styles.secondaryBtn} onPress={handleStop}>
-              <Feather name="square" size={22} color={colors.destructive} />
+              <Square size={22} color={colors.destructive} />
             </Pressable>
           )}
           <Pressable
@@ -376,11 +376,11 @@ export default function StudioScreen() {
             style={[styles.recBtn, { backgroundColor: recColor }]}
             onPress={handleRecord}
           >
-            <Feather name={recIcon} size={32} color="#fff" />
+            <RecIcon size={32} color="#fff" />
           </Pressable>
           {state === "done" && (
             <Pressable style={styles.secondaryBtn} onPress={handleDiscard}>
-              <Feather name="refresh-ccw" size={20} color={colors.mutedForeground} />
+              <RotateCcw size={20} color={colors.mutedForeground} />
             </Pressable>
           )}
         </View>
@@ -436,7 +436,7 @@ export default function StudioScreen() {
                 {isSaving ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Feather name="save" size={18} color="#fff" />
+                  <Save size={18} color="#fff" />
                 )}
                 <Text style={styles.saveBtnText}>
                   {isSaving ? "Saving..." : "Save Track"}

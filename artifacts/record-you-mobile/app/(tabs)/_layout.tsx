@@ -3,9 +3,9 @@ import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Feather } from "@expo/vector-icons";
+import { Clock, List, Mic } from "lucide-react-native";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
@@ -31,9 +31,7 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
   const safeAreaInsets = useSafeAreaInsets();
-  const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -56,7 +54,7 @@ function ClassicTabLayout() {
           isIOS ? (
             <BlurView
               intensity={100}
-              tint={isDark ? "dark" : "light"}
+              tint="dark"
               style={StyleSheet.absoluteFill}
             />
           ) : isWeb ? (
@@ -77,7 +75,7 @@ function ClassicTabLayout() {
             isIOS ? (
               <SymbolView name="waveform" tintColor={color} size={24} />
             ) : (
-              <Feather name="list" size={22} color={color} />
+              <List size={22} color={color} />
             ),
         }}
       />
@@ -89,7 +87,7 @@ function ClassicTabLayout() {
             isIOS ? (
               <SymbolView name="mic.fill" tintColor={color} size={24} />
             ) : (
-              <Feather name="mic" size={22} color={color} />
+              <Mic size={22} color={color} />
             ),
         }}
       />
@@ -101,7 +99,7 @@ function ClassicTabLayout() {
             isIOS ? (
               <SymbolView name="metronome" tintColor={color} size={24} />
             ) : (
-              <Feather name="clock" size={22} color={color} />
+              <Clock size={22} color={color} />
             ),
         }}
       />

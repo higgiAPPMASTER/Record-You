@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Minus, Play, Plus, Square } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
@@ -242,7 +242,7 @@ export default function MetronomeScreen() {
             style={styles.adjustBtn}
             onPress={() => setBpm((b) => Math.max(MIN_BPM, b - 5))}
           >
-            <Feather name="minus" size={20} color={colors.foreground} />
+            <Minus size={20} color={colors.foreground} />
           </Pressable>
           <Pressable
             style={styles.adjustBtn}
@@ -260,7 +260,7 @@ export default function MetronomeScreen() {
             style={styles.adjustBtn}
             onPress={() => setBpm((b) => Math.min(MAX_BPM, b + 5))}
           >
-            <Feather name="plus" size={20} color={colors.foreground} />
+            <Plus size={20} color={colors.foreground} />
           </Pressable>
         </View>
 
@@ -272,11 +272,11 @@ export default function MetronomeScreen() {
             ]}
             onPress={handleToggle}
           >
-            <Feather
-              name={isRunning ? "square" : "play"}
-              size={28}
-              color="#fff"
-            />
+            {isRunning ? (
+              <Square size={28} color="#fff" />
+            ) : (
+              <Play size={28} color="#fff" />
+            )}
           </Pressable>
           <Pressable style={styles.tapBtn} onPress={handleTap}>
             <Text style={styles.tapText}>Tap Tempo</Text>
