@@ -11,3 +11,9 @@ id = "jbMXd5axnL_MWLXab52Wd"
 uri = "file://screenshots/expected-phone.jpg"
 type = "image"
 title = "What the server is serving right now"
+
+[[outputs]]
+id = "m2tjUoCGGB9pMMcczYZGO"
+uri = "file://screenshots/current-server.jpg"
+type = "image"
+title = "What the server is serving right now (just screenshotted)"
