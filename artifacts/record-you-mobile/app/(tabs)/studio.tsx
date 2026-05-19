@@ -163,7 +163,10 @@ export default function StudioScreen() {
       } as any);
       formData.append("duration", elapsed.toString());
 
-      const uploadRes = await fetch(`/api/songs/${song.id}/audio`, {
+      const apiBase = process.env.EXPO_PUBLIC_DOMAIN
+        ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+        : "";
+      const uploadRes = await fetch(`${apiBase}/api/songs/${song.id}/audio`, {
         method: "POST",
         body: formData,
       });

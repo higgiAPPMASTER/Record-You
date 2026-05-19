@@ -66,8 +66,13 @@ export default function LibraryScreen() {
       }
       setPlayingId(null);
 
+      const fullUrl =
+        audioUrl.startsWith("http")
+          ? audioUrl
+          : `https://${process.env.EXPO_PUBLIC_DOMAIN}${audioUrl}`;
+
       const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrl },
+        { uri: fullUrl },
         { shouldPlay: true }
       );
       soundRef.current = sound;

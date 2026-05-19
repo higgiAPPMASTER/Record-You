@@ -92,8 +92,12 @@ export default function SongDetailScreen() {
 
     try {
       setIsLoadingAudio(true);
+      const fullUrl =
+        song.audioUrl.startsWith("http")
+          ? song.audioUrl
+          : `https://${process.env.EXPO_PUBLIC_DOMAIN}${song.audioUrl}`;
       const { sound } = await Audio.Sound.createAsync(
-        { uri: song.audioUrl },
+        { uri: fullUrl },
         { shouldPlay: true }
       );
       soundRef.current = sound;
