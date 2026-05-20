@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic, Library, Disc3, SlidersHorizontal, Guitar, BookOpen, Music2, Hash, Globe } from "lucide-react";
+import { Mic, Library, Disc3, SlidersHorizontal, Guitar, BookOpen, Music2, Hash, Globe, Timer } from "lucide-react";
 import { useGetSongStats } from "@workspace/api-client-react";
 import {
   Tooltip,
@@ -13,7 +13,8 @@ const navItems = [
   { href: "/record",  label: "Studio",   Icon: Mic },
   { href: "/mixer",   label: "Mixer",    Icon: SlidersHorizontal },
   { href: "/sessions",label: "Sessions", Icon: Globe },
-  { href: "/tuner",   label: "Tuner",    Icon: Guitar },
+  { href: "/tuner",      label: "Tuner",     Icon: Guitar },
+  { href: "/metronome",  label: "Metronome", Icon: Timer },
   { href: "/chords",  label: "Chords",   Icon: BookOpen },
   { href: "/tabs",    label: "Tabs",     Icon: Music2 },
   { href: "/capo",    label: "Capo",     Icon: Hash },
