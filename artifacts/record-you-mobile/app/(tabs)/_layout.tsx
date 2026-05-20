@@ -3,7 +3,7 @@ import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Clock, List, Mic } from "lucide-react-native";
+import { Globe, LayoutGrid, List, Mic, Music2 } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,9 +21,17 @@ function NativeTabLayout() {
         <Icon sf={{ default: "mic", selected: "mic.fill" }} />
         <Label>Studio</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="metronome">
-        <Icon sf={{ default: "metronome", selected: "metronome.fill" }} />
-        <Label>Metronome</Label>
+      <NativeTabs.Trigger name="sessions">
+        <Icon sf={{ default: "person.2.wave.2", selected: "person.2.wave.2.fill" }} />
+        <Label>Sessions</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tuner">
+        <Icon sf={{ default: "tuningfork", selected: "tuningfork" }} />
+        <Label>Tuner</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tools">
+        <Icon sf={{ default: "square.grid.2x2", selected: "square.grid.2x2.fill" }} />
+        <Label>Tools</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -92,15 +100,45 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="metronome"
+        name="sessions"
         options={{
-          title: "Metronome",
+          title: "Sessions",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="metronome" tintColor={color} size={24} />
+              <SymbolView name="person.2.wave.2" tintColor={color} size={24} />
             ) : (
-              <Clock size={22} color={color} />
+              <Globe size={22} color={color} />
             ),
+        }}
+      />
+      <Tabs.Screen
+        name="tuner"
+        options={{
+          title: "Tuner",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="tuningfork" tintColor={color} size={24} />
+            ) : (
+              <Music2 size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="tools"
+        options={{
+          title: "Tools",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="square.grid.2x2" tintColor={color} size={24} />
+            ) : (
+              <LayoutGrid size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="metronome"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

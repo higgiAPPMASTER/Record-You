@@ -20,7 +20,6 @@ if (process.env.EXPO_PUBLIC_DOMAIN) {
   setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 }
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
@@ -30,6 +29,9 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="song/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="chords" options={{ headerShown: false }} />
+      <Stack.Screen name="capo" options={{ headerShown: false }} />
+      <Stack.Screen name="tabviewer" options={{ headerShown: false }} />
     </Stack>
   );
 }
