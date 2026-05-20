@@ -18,6 +18,12 @@ uri = "file://attached_assets/icon-1024-alt.png"
 type = "image"
 title = "record-you-icon-alt"
 
+[[generated]]
+id = "ErKm7qDl8IDtsknFEQwUu"
+uri = "file://attached_assets/icon-mic-clean.png"
+type = "image"
+title = "record-you-clean-mic-icon"
+
 [[outputs]]
 id = "jbMXd5axnL_MWLXab52Wd"
 uri = "file://screenshots/expected-phone.jpg"
