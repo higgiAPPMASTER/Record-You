@@ -6,6 +6,18 @@ uri = "file://artifacts/record-you-mobile/assets/images/icon.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "EvjuSMH_wQqZgcTd1aPqx"
+uri = "file://attached_assets/icon-1024.png"
+type = "image"
+title = "record-you-app-icon"
+
+[[generated]]
+id = "BqwRAi_FgNwXOQ89E5Iri"
+uri = "file://attached_assets/icon-1024-alt.png"
+type = "image"
+title = "record-you-icon-alt"
+
 [[outputs]]
 id = "jbMXd5axnL_MWLXab52Wd"
 uri = "file://screenshots/expected-phone.jpg"
@@ -23,3 +35,15 @@ id = "uL1p6748bpPV3P5tjpkqJ"
 uri = "file://screenshots/web-app.jpg"
 type = "image"
 title = "Your web Record You app — fully working"
+
+[[outputs]]
+id = "o5ccLInzLWsjf_YrcCLKo"
+uri = "file://attached_assets/icon-1024.png"
+type = "image"
+title = "Option A — Microphone"
+
+[[outputs]]
+id = "qSoyWhmbKnUmvXd6ODsMv"
+uri = "file://attached_assets/icon-1024-alt.png"
+type = "image"
+title = "Option B — Musical Note"
