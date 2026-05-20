@@ -53,3 +53,9 @@ id = "qSoyWhmbKnUmvXd6ODsMv"
 uri = "file://attached_assets/icon-1024-alt.png"
 type = "image"
 title = "Option B — Musical Note"
+
+[[outputs]]
+id = "U133l8CQXdHEqSuty63X5"
+uri = "file://attached_assets/icon-mic-clean.png"
+type = "image"
+title = "Clean Mic Icon"
