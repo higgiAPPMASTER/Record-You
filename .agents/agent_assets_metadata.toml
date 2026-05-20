@@ -24,6 +24,12 @@ uri = "file://attached_assets/icon-mic-clean.png"
 type = "image"
 title = "record-you-clean-mic-icon"
 
+[[generated]]
+id = "7AMX_qjwLYwkRv00ZGKnn"
+uri = "file://attached_assets/icon-mic-grille.png"
+type = "image"
+title = "record-you-mic-grille-icon"
+
 [[outputs]]
 id = "jbMXd5axnL_MWLXab52Wd"
 uri = "file://screenshots/expected-phone.jpg"
@@ -59,3 +65,9 @@ id = "U133l8CQXdHEqSuty63X5"
 uri = "file://attached_assets/icon-mic-clean.png"
 type = "image"
 title = "Clean Mic Icon"
+
+[[outputs]]
+id = "SYQxFFs36odWlfi8Rrlsc"
+uri = "file://attached_assets/icon-mic-grille.png"
+type = "image"
+title = "Mic with Grille Lines"
