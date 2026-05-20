@@ -1,4 +1,5 @@
-import React, { useRef, useState } from "react";
+import { Audio } from "expo-av";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
   StyleSheet,
@@ -150,7 +151,19 @@ export default function TunerScreen() {
   const [pitch, setPitch] = useState<PitchData | null>(null);
   const [status, setStatus] = useState<"loading" | "listening" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
+  const [permissionGranted, setPermissionGranted] = useState(false);
   const webviewRef = useRef<WebView | null>(null);
+
+  useEffect(() => {
+    Audio.requestPermissionsAsync().then(({ status: permStatus }) => {
+      if (permStatus === "granted") {
+        setPermissionGranted(true);
+      } else {
+        setStatus("error");
+        setErrorMsg("Microphone permission denied. Please allow microphone access in Settings.");
+      }
+    });
+  }, []);
 
   const handleMessage = (event: { nativeEvent: { data: string } }) => {
     try {
@@ -239,20 +252,19 @@ export default function TunerScreen() {
         <Text style={styles.headerSub}>Chromatic tuner — play any note</Text>
       </View>
 
-      <WebView
-        ref={webviewRef}
-        source={{ html: TUNER_HTML }}
-        onMessage={handleMessage}
-        style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        javaScriptEnabled
-        originWhitelist={["*"]}
-        {...({
-          mediaCapturePermissionGrantType: "grantIfSameHostElsePrompt",
-          onPermissionRequest: (request: any) => { request.grant(request.resources); },
-        } as any)}
-      />
+      {permissionGranted && (
+        <WebView
+          ref={webviewRef}
+          source={{ html: TUNER_HTML }}
+          onMessage={handleMessage}
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
+          javaScriptEnabled
+          originWhitelist={["*"]}
+          onPermissionRequest={(request) => { request.grant(request.resources); }}
+        />
+      )}
 
       <View style={styles.center}>
         {status === "loading" && (
