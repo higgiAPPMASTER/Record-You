@@ -153,8 +153,8 @@ export default function StudioScreen() {
       });
 
       const formData = new FormData();
-      const filename = "recording." + (Platform.OS === "ios" ? "m4a" : "webm");
-      const mimeType = Platform.OS === "ios" ? "audio/m4a" : "audio/webm";
+      const filename = "recording.m4a";
+      const mimeType = "audio/m4a";
 
       formData.append("audio", {
         uri: recordingUriRef.current,
@@ -163,11 +163,9 @@ export default function StudioScreen() {
       } as any);
       formData.append("duration", elapsed.toString());
 
-      if (!process.env.EXPO_PUBLIC_DOMAIN) {
-        throw new Error("EXPO_PUBLIC_DOMAIN is not configured");
-      }
+      const domain = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
       const uploadRes = await fetch(
-        `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/songs/${song.id}/audio`,
+        `https://${domain}/api/songs/${song.id}/audio`,
         { method: "POST", body: formData },
       );
 

@@ -16,9 +16,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { setBaseUrl } from "@workspace/api-client-react";
 
-if (process.env.EXPO_PUBLIC_DOMAIN) {
-  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
-}
+const domain = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
+setBaseUrl(`https://${domain}`);
 
 SplashScreen.preventAutoHideAsync();
 
