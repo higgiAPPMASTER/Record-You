@@ -26,7 +26,9 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#080808"
       },
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -44,6 +46,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3a22dc20-da8f-4409-af6a-595250962eb0"
+      }
     }
   }
 }
