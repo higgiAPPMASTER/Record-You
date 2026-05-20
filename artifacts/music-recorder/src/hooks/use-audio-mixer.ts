@@ -38,6 +38,16 @@ export function useAudioMixer(): UseAudioMixerResult {
   const [loop, setLoop] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
 
+  const handleSetTrack1Volume = useCallback((v: number) => {
+    setTrack1Volume(v);
+    if (gain1Ref.current) gain1Ref.current.gain.value = v;
+  }, []);
+
+  const handleSetTrack2Volume = useCallback((v: number) => {
+    setTrack2Volume(v);
+    if (gain2Ref.current) gain2Ref.current.gain.value = v;
+  }, []);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const buffer1Ref = useRef<AudioBuffer | null>(null);
   const buffer2Ref = useRef<AudioBuffer | null>(null);
@@ -278,8 +288,8 @@ export function useAudioMixer(): UseAudioMixerResult {
     track1Volume,
     track2Volume,
     loop,
-    setTrack1Volume,
-    setTrack2Volume,
+    setTrack1Volume: handleSetTrack1Volume,
+    setTrack2Volume: handleSetTrack2Volume,
     setLoop,
     loadTracks,
     play,
