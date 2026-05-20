@@ -88,6 +88,7 @@ export default function SongDetail() {
         if (data?.shareToken) {
           return fetch(`/api/collab/${data.shareToken}/tracks`).then((r) => r.json());
         }
+        return undefined;
       })
       .then((tracks) => Array.isArray(tracks) && setCollabTracks(tracks))
       .catch(() => {});
