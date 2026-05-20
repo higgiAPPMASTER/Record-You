@@ -20,7 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CollabSong,
+  CollabTrack,
   HealthStatus,
+  ShareResult,
   Song,
   SongInput,
   SongStats,
@@ -330,6 +333,230 @@ export function useGetSongStats<TData = Awaited<ReturnType<typeof getSongStats>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetSongStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getShareSongUrl = (id: number,) => {
+
+
+
+
+  return `/api/songs/${id}/share`
+}
+
+/**
+ * @summary Generate or retrieve a share token for a song
+ */
+export const shareSong = async (id: number, options?: RequestInit): Promise<ShareResult> => {
+
+  return customFetch<ShareResult>(getShareSongUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getShareSongMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shareSong>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shareSong>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['shareSong'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shareSong>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  shareSong(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShareSongMutationResult = NonNullable<Awaited<ReturnType<typeof shareSong>>>
+
+    export type ShareSongMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate or retrieve a share token for a song
+ */
+export const useShareSong = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shareSong>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shareSong>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getShareSongMutationOptions(options));
+    }
+
+export const getGetCollabSongUrl = (token: string,) => {
+
+
+
+
+  return `/api/collab/${token}`
+}
+
+/**
+ * @summary Get song info by share token (public)
+ */
+export const getCollabSong = async (token: string, options?: RequestInit): Promise<CollabSong> => {
+
+  return customFetch<CollabSong>(getGetCollabSongUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCollabSongQueryKey = (token: string,) => {
+    return [
+    `/api/collab/${token}`
+    ] as const;
+    }
+
+
+export const getGetCollabSongQueryOptions = <TData = Awaited<ReturnType<typeof getCollabSong>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCollabSong>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCollabSongQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCollabSong>>> = ({ signal }) => getCollabSong(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(token), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCollabSong>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCollabSongQueryResult = NonNullable<Awaited<ReturnType<typeof getCollabSong>>>
+export type GetCollabSongQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get song info by share token (public)
+ */
+
+export function useGetCollabSong<TData = Awaited<ReturnType<typeof getCollabSong>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCollabSong>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCollabSongQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListCollabTracksUrl = (token: string,) => {
+
+
+
+
+  return `/api/collab/${token}/tracks`
+}
+
+/**
+ * @summary List collaboration tracks for a shared song
+ */
+export const listCollabTracks = async (token: string, options?: RequestInit): Promise<CollabTrack[]> => {
+
+  return customFetch<CollabTrack[]>(getListCollabTracksUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCollabTracksQueryKey = (token: string,) => {
+    return [
+    `/api/collab/${token}/tracks`
+    ] as const;
+    }
+
+
+export const getListCollabTracksQueryOptions = <TData = Awaited<ReturnType<typeof listCollabTracks>>, TError = ErrorType<unknown>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCollabTracks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCollabTracksQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCollabTracks>>> = ({ signal }) => listCollabTracks(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(token), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCollabTracks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCollabTracksQueryResult = NonNullable<Awaited<ReturnType<typeof listCollabTracks>>>
+export type ListCollabTracksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List collaboration tracks for a shared song
+ */
+
+export function useListCollabTracks<TData = Awaited<ReturnType<typeof listCollabTracks>>, TError = ErrorType<unknown>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCollabTracks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCollabTracksQueryOptions(token,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

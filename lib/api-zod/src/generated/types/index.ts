@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './collabSong';
+export * from './collabTrack';
 export * from './healthStatus';
+export * from './shareResult';
 export * from './song';
 export * from './songInput';
 export * from './songStats';

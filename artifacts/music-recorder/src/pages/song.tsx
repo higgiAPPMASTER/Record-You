@@ -5,7 +5,7 @@ import {
   getGetSongQueryKey, getListSongsQueryKey, getGetSongStatsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge } from "lucide-react";
+import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge, Share2, Users } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,6 +34,10 @@ export default function SongDetail() {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [collabTracks, setCollabTracks] = useState<Array<{ id: number; authorName: string | null; audioUrl: string; duration: number | null; createdAt: string }>>([]);
+  const [collabPlayingId, setCollabPlayingId] = useState<number | null>(null);
+  const collabAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState("");
@@ -74,6 +78,43 @@ export default function SongDetail() {
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
     if (audioRef.current) audioRef.current.playbackRate = speed;
+  };
+
+  useEffect(() => {
+    if (!song?.id) return;
+    fetch(`/api/songs/${song.id}/share`, { method: "POST" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.shareToken) {
+          return fetch(`/api/collab/${data.shareToken}/tracks`).then((r) => r.json());
+        }
+      })
+      .then((tracks) => Array.isArray(tracks) && setCollabTracks(tracks))
+      .catch(() => {});
+  }, [song?.id]);
+
+  const handleShare = async () => {
+    if (!song) return;
+    try {
+      const res = await fetch(`/api/songs/${song.id}/share`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed");
+      const { shareUrl } = await res.json();
+      await navigator.clipboard.writeText(shareUrl);
+      toast({ title: "Link copied!", description: "Share it with your collaborator." });
+    } catch {
+      toast({ title: "Could not copy link", variant: "destructive" });
+    }
+  };
+
+  const toggleCollabTrack = (trackId: number, audioUrl: string) => {
+    if (!collabAudioRef.current) return;
+    if (collabPlayingId === trackId) {
+      collabAudioRef.current.pause();
+      setCollabPlayingId(null);
+    } else {
+      collabAudioRef.current.src = audioUrl;
+      collabAudioRef.current.play().then(() => setCollabPlayingId(trackId)).catch(() => setCollabPlayingId(null));
+    }
   };
 
   const handleDownload = async () => {
@@ -294,6 +335,17 @@ export default function SongDetail() {
               </Button>
             )}
 
+            {song.hasAudio && (
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleShare}
+              >
+                <Share2 className="w-4 h-4" />
+                Share for Collab
+              </Button>
+            )}
+
             {song.hasAudio && song.audioUrl && (
               <Button
                 data-testid="button-download"
@@ -316,6 +368,38 @@ export default function SongDetail() {
               <Trash className="w-4 h-4 mr-2" /> Delete Track
             </Button>
           </Card>
+
+          {/* Collaborations */}
+          {collabTracks.length > 0 && (
+            <Card className="p-6 bg-card border-border">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold">Collaborations</h3>
+                <span className="text-xs text-muted-foreground ml-1">({collabTracks.length})</span>
+              </div>
+              <audio ref={collabAudioRef} onEnded={() => setCollabPlayingId(null)} className="hidden" />
+              <div className="space-y-2">
+                {collabTracks.map((track) => (
+                  <div key={track.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-background/50">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="w-8 h-8 rounded-full flex-shrink-0"
+                      onClick={() => toggleCollabTrack(track.id, track.audioUrl)}
+                    >
+                      {collabPlayingId === track.id
+                        ? <Pause className="w-3.5 h-3.5" />
+                        : <Play className="w-3.5 h-3.5 translate-x-[1px]" />}
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{track.authorName || "Anonymous"}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{track.duration ? `${Math.floor(track.duration / 60)}:${Math.floor(track.duration % 60).toString().padStart(2, "0")}` : "--:--"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>

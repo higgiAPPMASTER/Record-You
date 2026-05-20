@@ -10,6 +10,7 @@ export const songsTable = pgTable("songs", {
   duration: real("duration"),
   audioObjectPath: text("audio_object_path"),
   waveformData: text("waveform_data"),
+  shareToken: text("share_token").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -50,6 +50,31 @@ export interface SongUpdate {
   tags?: string;
 }
 
+export interface ShareResult {
+  shareToken: string;
+  shareUrl: string;
+}
+
+export interface CollabSong {
+  id: number;
+  title: string;
+  hasAudio: boolean;
+  /** @nullable */
+  duration: number | null;
+  /** @nullable */
+  audioUrl: string | null;
+}
+
+export interface CollabTrack {
+  id: number;
+  /** @nullable */
+  authorName?: string | null;
+  audioUrl: string;
+  /** @nullable */
+  duration?: number | null;
+  createdAt: string;
+}
+
 export interface SongStats {
   totalSongs: number;
   /** Total duration of all songs in seconds */

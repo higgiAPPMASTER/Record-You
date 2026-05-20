@@ -72,6 +72,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/SongStats"
 
+  /songs/{id}/share:
+    post:
+      operationId: shareSong
+      tags: [songs]
+      summary: Generate or retrieve a share token for a song
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Share token and URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareResult"
+        "404":
+          description: Not found
+
+  /collab/{token}:
+    get:
+      operationId: getCollabSong
+      tags: [songs]
+      summary: Get song info by share token (public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Song info for collaboration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollabSong"
+        "404":
+          description: Not found
+
+  /collab/{token}/tracks:
+    get:
+      operationId: listCollabTracks
+      tags: [songs]
+      summary: List collaboration tracks for a shared song
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of collaboration tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CollabTrack"
+
   /songs/{id}:
     get:
       operationId: getSong
@@ -197,6 +260,46 @@ components:
           type: string
         tags:
           type: string
+
+    ShareResult:
+      type: object
+      required: [shareToken, shareUrl]
+      properties:
+        shareToken:
+          type: string
+        shareUrl:
+          type: string
+
+    CollabSong:
+      type: object
+      required: [id, title, hasAudio, duration, audioUrl]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        hasAudio:
+          type: boolean
+        duration:
+          type: ["number", "null"]
+        audioUrl:
+          type: ["string", "null"]
+
+    CollabTrack:
+      type: object
+      required: [id, audioUrl, createdAt]
+      properties:
+        id:
+          type: integer
+        authorName:
+          type: ["string", "null"]
+        audioUrl:
+          type: string
+        duration:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
 
     SongStats:
       type: object

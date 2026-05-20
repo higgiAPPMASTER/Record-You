@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { eq, desc, sum, count } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { db, songsTable } from "@workspace/db";
 import {
   CreateSongBody,
@@ -170,6 +171,33 @@ router.delete("/songs/:id", async (req, res) => {
     res.status(204).send();
   } catch (err) {
     req.log.error({ err }, "Failed to delete song");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/songs/:id/share", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  try {
+    const [song] = await db.select().from(songsTable).where(eq(songsTable.id, id));
+    if (!song) {
+      res.status(404).json({ error: "Song not found" });
+      return;
+    }
+    let token = song.shareToken;
+    if (!token) {
+      token = randomUUID().replace(/-/g, "");
+      await db.update(songsTable).set({ shareToken: token, updatedAt: new Date() }).where(eq(songsTable.id, id));
+    }
+    const protocol = (req.headers["x-forwarded-proto"] as string) || "https";
+    const host = (req.headers["x-forwarded-host"] as string) || (req.headers.host as string) || "localhost";
+    const shareUrl = `${protocol}://${host}/collab/${token}`;
+    res.json({ shareToken: token, shareUrl });
+  } catch (err) {
+    req.log.error({ err }, "Failed to share song");
     res.status(500).json({ error: "Internal server error" });
   }
 });

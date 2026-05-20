@@ -71,6 +71,52 @@ export const GetSongStatsResponse = zod.object({
 
 
 /**
+ * @summary Generate or retrieve a share token for a song
+ */
+export const ShareSongParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ShareSongResponse = zod.object({
+  "shareToken": zod.string(),
+  "shareUrl": zod.string()
+})
+
+
+/**
+ * @summary Get song info by share token (public)
+ */
+export const GetCollabSongParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetCollabSongResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "hasAudio": zod.boolean(),
+  "duration": zod.number().nullable(),
+  "audioUrl": zod.string().nullable()
+})
+
+
+/**
+ * @summary List collaboration tracks for a shared song
+ */
+export const ListCollabTracksParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const ListCollabTracksResponseItem = zod.object({
+  "id": zod.number(),
+  "authorName": zod.string().nullish(),
+  "audioUrl": zod.string(),
+  "duration": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCollabTracksResponse = zod.array(ListCollabTracksResponseItem)
+
+
+/**
  * @summary Get a single song
  */
 export const GetSongParams = zod.object({

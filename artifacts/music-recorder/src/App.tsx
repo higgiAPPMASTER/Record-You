@@ -12,24 +12,31 @@ import Tuner from "@/pages/tuner";
 import Chords from "@/pages/chords";
 import Tabs from "@/pages/tabs";
 import Capo from "@/pages/capo";
+import Collab from "@/pages/collab";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
-    <AppLayout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/record" component={Record} />
-        <Route path="/song/:id" component={SongDetail} />
-        <Route path="/mixer" component={Mixer} />
-        <Route path="/tuner" component={Tuner} />
-        <Route path="/chords" component={Chords} />
-        <Route path="/tabs" component={Tabs} />
-        <Route path="/capo" component={Capo} />
-        <Route component={NotFound} />
-      </Switch>
-    </AppLayout>
+    <Switch>
+      {/* Collab page — no sidebar, accessible by anyone with a share link */}
+      <Route path="/collab/:token" component={Collab} />
+      <Route>
+        <AppLayout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/record" component={Record} />
+            <Route path="/song/:id" component={SongDetail} />
+            <Route path="/mixer" component={Mixer} />
+            <Route path="/tuner" component={Tuner} />
+            <Route path="/chords" component={Chords} />
+            <Route path="/tabs" component={Tabs} />
+            <Route path="/capo" component={Capo} />
+            <Route component={NotFound} />
+          </Switch>
+        </AppLayout>
+      </Route>
+    </Switch>
   );
 }
 
