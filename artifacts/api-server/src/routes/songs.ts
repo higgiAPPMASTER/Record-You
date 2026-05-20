@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import multer from "multer";
 import { eq, desc, sum, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { db, songsTable } from "@workspace/db";
+import { db, songsTable, collaborationsTable } from "@workspace/db";
 import {
   CreateSongBody,
   UpdateSongBody,
@@ -34,6 +34,9 @@ function formatSong(song: typeof songsTable.$inferSelect) {
     audioUrl,
     hasAudio: !!song.audioObjectPath,
     waveformData,
+    isPublic: song.isPublic,
+    seekingHelp: song.seekingHelp ?? null,
+    shareToken: song.shareToken ?? null,
     createdAt: song.createdAt.toISOString(),
     updatedAt: song.updatedAt.toISOString(),
   };
@@ -198,6 +201,75 @@ router.post("/songs/:id/share", async (req, res) => {
     res.json({ shareToken: token, shareUrl });
   } catch (err) {
     req.log.error({ err }, "Failed to share song");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/songs/:id/publish", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { isPublic, seekingHelp } = req.body as { isPublic?: boolean; seekingHelp?: string };
+  if (typeof isPublic !== "boolean") { res.status(400).json({ error: "isPublic (boolean) required" }); return; }
+  try {
+    const [song] = await db.select().from(songsTable).where(eq(songsTable.id, id));
+    if (!song) { res.status(404).json({ error: "Song not found" }); return; }
+
+    // Ensure a shareToken exists when publishing
+    let token = song.shareToken;
+    if (isPublic && !token) {
+      token = randomUUID().replace(/-/g, "");
+    }
+
+    const [updated] = await db
+      .update(songsTable)
+      .set({
+        isPublic,
+        seekingHelp: seekingHelp?.trim() || null,
+        ...(token && !song.shareToken ? { shareToken: token } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(songsTable.id, id))
+      .returning();
+
+    res.json(formatSong(updated));
+  } catch (err) {
+    req.log.error({ err }, "Failed to update publish status");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/sessions", async (req, res) => {
+  try {
+    const songs = await db
+      .select()
+      .from(songsTable)
+      .where(eq(songsTable.isPublic, true))
+      .orderBy(desc(songsTable.updatedAt));
+
+    const results = await Promise.all(
+      songs.map(async (song) => {
+        const [{ collabCount }] = await db
+          .select({ collabCount: count() })
+          .from(collaborationsTable)
+          .where(eq(collaborationsTable.songId, song.id));
+        return {
+          id: song.id,
+          title: song.title,
+          hasAudio: !!song.audioObjectPath,
+          isPublic: song.isPublic,
+          seekingHelp: song.seekingHelp ?? null,
+          duration: song.duration ?? null,
+          collabCount: Number(collabCount ?? 0),
+          shareToken: song.shareToken!,
+          audioUrl: song.audioObjectPath ? `/api/songs/${song.id}/audio` : null,
+          createdAt: song.createdAt.toISOString(),
+        };
+      })
+    );
+
+    res.json(results);
+  } catch (err) {
+    req.log.error({ err }, "Failed to list sessions");
     res.status(500).json({ error: "Internal server error" });
   }
 });

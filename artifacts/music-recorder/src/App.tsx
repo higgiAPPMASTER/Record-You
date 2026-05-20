@@ -13,6 +13,7 @@ import Chords from "@/pages/chords";
 import Tabs from "@/pages/tabs";
 import Capo from "@/pages/capo";
 import Collab from "@/pages/collab";
+import Sessions from "@/pages/sessions";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function Router() {
             <Route path="/chords" component={Chords} />
             <Route path="/tabs" component={Tabs} />
             <Route path="/capo" component={Capo} />
+            <Route path="/sessions" component={Sessions} />
             <Route component={NotFound} />
           </Switch>
         </AppLayout>

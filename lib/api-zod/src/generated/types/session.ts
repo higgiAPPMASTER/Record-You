@@ -6,14 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CollabSong {
+export interface Session {
   id: number;
   title: string;
+  hasAudio: boolean;
+  isPublic: boolean;
   /** @nullable */
   seekingHelp?: string | null;
-  hasAudio: boolean;
   /** @nullable */
-  duration: number | null;
+  duration?: number | null;
+  /** Number of collaboration tracks submitted */
+  collabCount: number;
+  shareToken: string;
   /** @nullable */
-  audioUrl: string | null;
+  audioUrl?: string | null;
+  createdAt: Date;
 }

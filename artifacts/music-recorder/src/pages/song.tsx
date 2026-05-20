@@ -5,7 +5,7 @@ import {
   getGetSongQueryKey, getListSongsQueryKey, getGetSongStatsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge, Share2, Users } from "lucide-react";
+import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge, Share2, Users, Globe, GlobeLock } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,6 +38,10 @@ export default function SongDetail() {
   const [collabTracks, setCollabTracks] = useState<Array<{ id: number; authorName: string | null; audioUrl: string; duration: number | null; createdAt: string }>>([]);
   const [collabPlayingId, setCollabPlayingId] = useState<number | null>(null);
   const collabAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [seekingHelp, setSeekingHelp] = useState("");
+  const [showPublishInput, setShowPublishInput] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState("");
@@ -147,6 +151,46 @@ export default function SongDetail() {
       toast({ title: "Track updated" });
     } catch {
       toast({ title: "Error updating track", variant: "destructive" });
+    }
+  };
+
+  const handleTogglePublish = async () => {
+    if (!song) return;
+    const willPublish = !song.isPublic;
+    if (willPublish && showPublishInput) {
+      setIsPublishing(true);
+      try {
+        await fetch(`/api/songs/${song.id}/publish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPublic: true, seekingHelp: seekingHelp.trim() }),
+        });
+        queryClient.invalidateQueries({ queryKey: getGetSongQueryKey(id) });
+        setShowPublishInput(false);
+        toast({ title: "Posted to Open Sessions!", description: "Other musicians can now find and collab on your song." });
+      } catch {
+        toast({ title: "Failed to post session", variant: "destructive" });
+      } finally {
+        setIsPublishing(false);
+      }
+    } else if (willPublish) {
+      setShowPublishInput(true);
+    } else {
+      setIsPublishing(true);
+      try {
+        await fetch(`/api/songs/${song.id}/publish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPublic: false }),
+        });
+        queryClient.invalidateQueries({ queryKey: getGetSongQueryKey(id) });
+        setShowPublishInput(false);
+        toast({ title: "Removed from Open Sessions" });
+      } catch {
+        toast({ title: "Failed to remove session", variant: "destructive" });
+      } finally {
+        setIsPublishing(false);
+      }
     }
   };
 
@@ -345,6 +389,53 @@ export default function SongDetail() {
                 <Share2 className="w-4 h-4" />
                 Share for Collab
               </Button>
+            )}
+
+            {song.hasAudio && (
+              <div className="space-y-2">
+                {showPublishInput && !song.isPublic && (
+                  <div className="space-y-2">
+                    <Input
+                      value={seekingHelp}
+                      onChange={(e) => setSeekingHelp(e.target.value)}
+                      placeholder='What do you need? e.g. "lead guitar"'
+                      className="text-sm"
+                      onKeyDown={(e) => e.key === "Enter" && handleTogglePublish()}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 gap-1.5 font-semibold"
+                        onClick={handleTogglePublish}
+                        disabled={isPublishing}
+                      >
+                        {isPublishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
+                        Post Session
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowPublishInput(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {(!showPublishInput || song.isPublic) && (
+                  <Button
+                    variant={song.isPublic ? "secondary" : "outline"}
+                    className={cn("w-full gap-2", song.isPublic && "border border-primary/30 text-primary")}
+                    onClick={handleTogglePublish}
+                    disabled={isPublishing}
+                  >
+                    {isPublishing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : song.isPublic ? (
+                      <GlobeLock className="w-4 h-4" />
+                    ) : (
+                      <Globe className="w-4 h-4" />
+                    )}
+                    {song.isPublic ? "Remove from Sessions" : "Post to Open Sessions"}
+                  </Button>
+                )}
+              </div>
             )}
 
             {song.hasAudio && song.audioUrl && (

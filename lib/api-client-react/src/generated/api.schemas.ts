@@ -32,6 +32,18 @@ export interface Song {
      * @nullable
      */
   waveformData?: number[] | null;
+  /** Whether this song is listed on the open sessions board */
+  isPublic: boolean;
+  /**
+     * What kind of collaboration the artist is looking for
+     * @nullable
+     */
+  seekingHelp?: string | null;
+  /**
+     * Share token for collaboration link
+     * @nullable
+     */
+  shareToken?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,14 +62,39 @@ export interface SongUpdate {
   tags?: string;
 }
 
+export interface PublishInput {
+  isPublic: boolean;
+  /** What kind of help the artist is looking for (e.g. "lead guitar", "vocals") */
+  seekingHelp?: string;
+}
+
 export interface ShareResult {
   shareToken: string;
   shareUrl: string;
 }
 
+export interface Session {
+  id: number;
+  title: string;
+  hasAudio: boolean;
+  isPublic: boolean;
+  /** @nullable */
+  seekingHelp?: string | null;
+  /** @nullable */
+  duration?: number | null;
+  /** Number of collaboration tracks submitted */
+  collabCount: number;
+  shareToken: string;
+  /** @nullable */
+  audioUrl?: string | null;
+  createdAt: string;
+}
+
 export interface CollabSong {
   id: number;
   title: string;
+  /** @nullable */
+  seekingHelp?: string | null;
   hasAudio: boolean;
   /** @nullable */
   duration: number | null;

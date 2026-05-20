@@ -23,6 +23,8 @@ import type {
   CollabSong,
   CollabTrack,
   HealthStatus,
+  PublishInput,
+  Session,
   ShareResult,
   Song,
   SongInput,
@@ -414,6 +416,155 @@ export const useShareSong = <TError = ErrorType<void>,
       > => {
       return useMutation(getShareSongMutationOptions(options));
     }
+
+export const getPublishSongUrl = (id: number,) => {
+
+
+
+
+  return `/api/songs/${id}/publish`
+}
+
+/**
+ * @summary Toggle a song's public visibility on the open sessions board
+ */
+export const publishSong = async (id: number,
+    publishInput: PublishInput, options?: RequestInit): Promise<Song> => {
+
+  return customFetch<Song>(getPublishSongUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      publishInput,)
+  }
+);}
+
+
+
+
+export const getPublishSongMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishSong>>, TError,{id: number;data: BodyType<PublishInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishSong>>, TError,{id: number;data: BodyType<PublishInput>}, TContext> => {
+
+const mutationKey = ['publishSong'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishSong>>, {id: number;data: BodyType<PublishInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  publishSong(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishSongMutationResult = NonNullable<Awaited<ReturnType<typeof publishSong>>>
+    export type PublishSongMutationBody = BodyType<PublishInput>
+    export type PublishSongMutationError = ErrorType<void>
+
+    /**
+ * @summary Toggle a song's public visibility on the open sessions board
+ */
+export const usePublishSong = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishSong>>, TError,{id: number;data: BodyType<PublishInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishSong>>,
+        TError,
+        {id: number;data: BodyType<PublishInput>},
+        TContext
+      > => {
+      return useMutation(getPublishSongMutationOptions(options));
+    }
+
+export const getListSessionsUrl = () => {
+
+
+
+
+  return `/api/sessions`
+}
+
+/**
+ * @summary List all public open sessions
+ */
+export const listSessions = async ( options?: RequestInit): Promise<Session[]> => {
+
+  return customFetch<Session[]>(getListSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSessionsQueryKey = () => {
+    return [
+    `/api/sessions`
+    ] as const;
+    }
+
+
+export const getListSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSessions>>> = ({ signal }) => listSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listSessions>>>
+export type ListSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all public open sessions
+ */
+
+export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetCollabSongUrl = (token: string,) => {
 

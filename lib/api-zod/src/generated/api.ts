@@ -29,6 +29,9 @@ export const ListSongsResponseItem = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
+  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
+  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
+  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -64,6 +67,9 @@ export const GetSongStatsResponse = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
+  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
+  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
+  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -84,6 +90,53 @@ export const ShareSongResponse = zod.object({
 
 
 /**
+ * @summary Toggle a song's public visibility on the open sessions board
+ */
+export const PublishSongParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PublishSongBody = zod.object({
+  "isPublic": zod.boolean(),
+  "seekingHelp": zod.string().optional().describe('What kind of help the artist is looking for (e.g. \"lead guitar\", \"vocals\")')
+})
+
+export const PublishSongResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "notes": zod.string().nullish(),
+  "tags": zod.string().nullish(),
+  "duration": zod.number().nullish().describe('Duration in seconds'),
+  "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
+  "hasAudio": zod.boolean(),
+  "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
+  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
+  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
+  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all public open sessions
+ */
+export const ListSessionsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "hasAudio": zod.boolean(),
+  "isPublic": zod.boolean(),
+  "seekingHelp": zod.string().nullish(),
+  "duration": zod.number().nullish(),
+  "collabCount": zod.number().describe('Number of collaboration tracks submitted'),
+  "shareToken": zod.string(),
+  "audioUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
+
+
+/**
  * @summary Get song info by share token (public)
  */
 export const GetCollabSongParams = zod.object({
@@ -93,6 +146,7 @@ export const GetCollabSongParams = zod.object({
 export const GetCollabSongResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
+  "seekingHelp": zod.string().nullish(),
   "hasAudio": zod.boolean(),
   "duration": zod.number().nullable(),
   "audioUrl": zod.string().nullable()
@@ -132,6 +186,9 @@ export const GetSongResponse = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
+  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
+  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
+  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -162,6 +219,9 @@ export const UpdateSongResponse = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
+  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
+  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
+  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic, Library, Disc3, SlidersHorizontal, Guitar, BookOpen, Music2, Hash } from "lucide-react";
+import { Mic, Library, Disc3, SlidersHorizontal, Guitar, BookOpen, Music2, Hash, Globe } from "lucide-react";
 import { useGetSongStats } from "@workspace/api-client-react";
 import {
   Tooltip,
@@ -9,13 +9,14 @@ import {
 } from "@/components/ui/tooltip";
 
 const navItems = [
-  { href: "/",       label: "Library", Icon: Library },
-  { href: "/record", label: "Studio",  Icon: Mic },
-  { href: "/mixer",  label: "Mixer",   Icon: SlidersHorizontal },
-  { href: "/tuner",  label: "Tuner",   Icon: Guitar },
-  { href: "/chords", label: "Chords",  Icon: BookOpen },
-  { href: "/tabs",   label: "Tabs",    Icon: Music2 },
-  { href: "/capo",   label: "Capo",    Icon: Hash },
+  { href: "/",        label: "Library",  Icon: Library },
+  { href: "/record",  label: "Studio",   Icon: Mic },
+  { href: "/mixer",   label: "Mixer",    Icon: SlidersHorizontal },
+  { href: "/sessions",label: "Sessions", Icon: Globe },
+  { href: "/tuner",   label: "Tuner",    Icon: Guitar },
+  { href: "/chords",  label: "Chords",   Icon: BookOpen },
+  { href: "/tabs",    label: "Tabs",     Icon: Music2 },
+  { href: "/capo",    label: "Capo",     Icon: Hash },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

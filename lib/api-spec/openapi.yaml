@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: songs
     description: Song management
+  - name: sessions
+    description: Public open sessions board
 paths:
   /healthz:
     get:
@@ -92,6 +94,48 @@ paths:
                 $ref: "#/components/schemas/ShareResult"
         "404":
           description: Not found
+
+  /songs/{id}/publish:
+    post:
+      operationId: publishSong
+      tags: [songs]
+      summary: Toggle a song's public visibility on the open sessions board
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishInput"
+      responses:
+        "200":
+          description: Updated song
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Song"
+        "404":
+          description: Not found
+
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List all public open sessions
+      responses:
+        "200":
+          description: Public songs open for collaboration
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
 
   /collab/{token}:
     get:
@@ -208,7 +252,7 @@ components:
 
     Song:
       type: object
-      required: [id, title, hasAudio, createdAt, updatedAt]
+      required: [id, title, hasAudio, isPublic, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -231,6 +275,15 @@ components:
           items:
             type: number
           description: Amplitude peak values (0–1) for waveform visualization
+        isPublic:
+          type: boolean
+          description: Whether this song is listed on the open sessions board
+        seekingHelp:
+          type: ["string", "null"]
+          description: What kind of collaboration the artist is looking for
+        shareToken:
+          type: ["string", "null"]
+          description: Share token for collaboration link
         createdAt:
           type: string
           format: date-time
@@ -261,6 +314,16 @@ components:
         tags:
           type: string
 
+    PublishInput:
+      type: object
+      required: [isPublic]
+      properties:
+        isPublic:
+          type: boolean
+        seekingHelp:
+          type: string
+          description: What kind of help the artist is looking for (e.g. "lead guitar", "vocals")
+
     ShareResult:
       type: object
       required: [shareToken, shareUrl]
@@ -270,6 +333,33 @@ components:
         shareUrl:
           type: string
 
+    Session:
+      type: object
+      required: [id, title, hasAudio, isPublic, collabCount, shareToken, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        hasAudio:
+          type: boolean
+        isPublic:
+          type: boolean
+        seekingHelp:
+          type: ["string", "null"]
+        duration:
+          type: ["number", "null"]
+        collabCount:
+          type: integer
+          description: Number of collaboration tracks submitted
+        shareToken:
+          type: string
+        audioUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
     CollabSong:
       type: object
       required: [id, title, hasAudio, duration, audioUrl]
@@ -278,6 +368,8 @@ components:
           type: integer
         title:
           type: string
+        seekingHelp:
+          type: ["string", "null"]
         hasAudio:
           type: boolean
         duration:

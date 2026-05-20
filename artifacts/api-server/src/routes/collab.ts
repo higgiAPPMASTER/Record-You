@@ -20,6 +20,7 @@ router.get("/collab/:token", async (req, res) => {
     res.json({
       id: song.id,
       title: song.title,
+      seekingHelp: song.seekingHelp ?? null,
       hasAudio: !!song.audioObjectPath,
       duration: song.duration ?? null,
       audioUrl: song.audioObjectPath ? `/api/collab/${token}/audio` : null,
