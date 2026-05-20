@@ -36,7 +36,7 @@ function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
   let rms = 0;
   for (let i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return null;
+  if (rms < 0.003) return null; // lower threshold — catches quieter instruments
 
   // Autocorrelation
   const c = new Float32Array(MAX_SAMPLES);
@@ -76,8 +76,8 @@ function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
   // Clamp to musical range: B0 (30.87 Hz) – B8 (7902 Hz)
   if (freq < 30 || freq > 8000) return null;
 
-  // Confidence check
-  if (maxVal / c[0] < 0.5) return null;
+  // Confidence check — 0.25 works for real instruments (guitar, voice, etc.)
+  if (c[0] === 0 || maxVal / c[0] < 0.25) return null;
 
   return freq;
 }
@@ -116,15 +116,22 @@ export function useTuner() {
   const start = useCallback(async () => {
     setErrorMsg(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: false,
+      });
       streamRef.current = stream;
 
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
 
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 4096;
-      analyser.smoothingTimeConstant = 0.85;
+      analyser.fftSize = 8192;          // larger = better low-freq resolution
+      analyser.smoothingTimeConstant = 0; // no smoothing — we need raw time-domain
       analyserRef.current = analyser;
       bufferRef.current = new Float32Array(analyser.fftSize) as Float32Array<ArrayBuffer>;
 
