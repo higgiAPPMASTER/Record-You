@@ -61,14 +61,29 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       audioContextRef.current = audioContext;
 
       const source = audioContext.createMediaStreamSource(stream);
+
+      // Gentle compressor to prevent OS driver gain-riding on loud signals
+      const compressor = audioContext.createDynamicsCompressor();
+      compressor.threshold.value = -18;  // start compressing at -18 dB
+      compressor.knee.value = 6;         // soft knee
+      compressor.ratio.value = 3;        // 3:1 — gentle, musical
+      compressor.attack.value = 0.003;   // 3 ms fast attack
+      compressor.release.value = 0.25;   // 250 ms release
+
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
-      source.connect(analyser);
+
+      // Route: mic → compressor → analyser → recording destination
+      const dest = audioContext.createMediaStreamDestination();
+      source.connect(compressor);
+      compressor.connect(analyser);
+      compressor.connect(dest);
       setAnalyserNode(analyser);
 
       const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
         .find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
-      const mediaRecorder = new MediaRecorder(stream, {
+      // Record from the Web Audio graph output, not the raw OS stream
+      const mediaRecorder = new MediaRecorder(dest.stream, {
         ...(mimeType ? { mimeType } : {}),
         audioBitsPerSecond: 192000,
       });
