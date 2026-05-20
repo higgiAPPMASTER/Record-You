@@ -30,6 +30,12 @@ uri = "file://attached_assets/icon-mic-grille.png"
 type = "image"
 title = "record-you-mic-grille-icon"
 
+[[generated]]
+id = "dv3iLF2zSWfnQp23aY-Ow"
+uri = "file://attached_assets/feature-graphic-1024x500.png"
+type = "image"
+title = "record-you-feature-graphic"
+
 [[outputs]]
 id = "jbMXd5axnL_MWLXab52Wd"
 uri = "file://screenshots/expected-phone.jpg"
@@ -77,3 +83,9 @@ id = "O4Br5ZUxcgXDV6vdqJxg7"
 uri = "file://attached_assets/icon-512.png"
 type = "image"
 title = "Icon — 512×512 (Google Play ready)"
+
+[[outputs]]
+id = "QTaRdq78p72PhIYL0sIUk"
+uri = "file://attached_assets/feature-graphic-final.png"
+type = "image"
+title = "Feature Graphic — 1024×500 (Google Play ready)"
