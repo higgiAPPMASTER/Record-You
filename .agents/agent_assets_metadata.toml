@@ -71,3 +71,9 @@ id = "SYQxFFs36odWlfi8Rrlsc"
 uri = "file://attached_assets/icon-mic-grille.png"
 type = "image"
 title = "Mic with Grille Lines"
+
+[[outputs]]
+id = "O4Br5ZUxcgXDV6vdqJxg7"
+uri = "file://attached_assets/icon-512.png"
+type = "image"
+title = "Icon — 512×512 (Google Play ready)"
