@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
+import * as Sharing from "expo-sharing";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -26,6 +27,7 @@ import {
   getGetSongQueryKey,
   getListSongsQueryKey,
 } from "@workspace/api-client-react";
+import { getLocalRecording, deleteLocalRecording, formatBytes, type LocalRecording } from "@/lib/recordings";
 
 function formatDuration(s: number | null | undefined): string {
   if (!s) return "0:00";
@@ -56,6 +58,7 @@ export default function SongDetailScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [localRec, setLocalRec] = useState<LocalRecording | null>(null);
 
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -67,6 +70,11 @@ export default function SongDetailScreen() {
       setInitialized(true);
     }
   }, [song, initialized]);
+
+  useEffect(() => {
+    if (!songId) return;
+    getLocalRecording(songId).then(setLocalRec);
+  }, [songId]);
 
   useEffect(() => {
     return () => {
@@ -92,8 +100,9 @@ export default function SongDetailScreen() {
 
     try {
       setIsLoadingAudio(true);
+      const playUri = localRec?.uri ?? song.audioUrl;
       const { sound } = await Audio.Sound.createAsync(
-        { uri: song.audioUrl },
+        { uri: playUri },
         { shouldPlay: true }
       );
       soundRef.current = sound;
@@ -136,6 +145,31 @@ export default function SongDetailScreen() {
     }
   };
 
+  const handleShare = async () => {
+    if (!localRec) {
+      Alert.alert(
+        "No local copy",
+        "This track was recorded on another device. Play it once to download it for sharing."
+      );
+      return;
+    }
+    const available = await Sharing.isAvailableAsync();
+    if (!available) {
+      Alert.alert("Sharing not supported on this device.");
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Sharing.shareAsync(localRec.uri, {
+        mimeType: localRec.mimeType,
+        dialogTitle: song?.title ?? "Share recording",
+        UTI: localRec.mimeType === "audio/m4a" ? "public.mpeg-4-audio" : undefined,
+      });
+    } catch {
+      Alert.alert("Share failed", "Could not open the share sheet.");
+    }
+  };
+
   const handleDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert("Delete Track", `Delete "${song?.title}"?`, [
@@ -146,6 +180,7 @@ export default function SongDetailScreen() {
         onPress: async () => {
           await soundRef.current?.unloadAsync().catch(() => {});
           await deleteSong.mutateAsync({ id: songId });
+          await deleteLocalRecording(songId);
           queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
           router.back();
         },
@@ -308,6 +343,13 @@ export default function SongDetailScreen() {
         <Text style={styles.topBarTitle} numberOfLines={1}>
           {song.title}
         </Text>
+        <Pressable style={styles.deleteBtn} onPress={handleShare} disabled={!localRec}>
+          <Feather
+            name="share-2"
+            size={20}
+            color={localRec ? colors.primary : colors.mutedForeground}
+          />
+        </Pressable>
         <Pressable style={styles.deleteBtn} onPress={handleDelete}>
           <Feather name="trash-2" size={20} color={colors.destructive} />
         </Pressable>
@@ -341,6 +383,11 @@ export default function SongDetailScreen() {
                   {formatDuration(duration)}
                 </Text>
               </View>
+              <Text style={[styles.noAudio, { marginTop: 12, fontSize: 11 }]}>
+                {localRec
+                  ? `Saved on device · ${formatBytes(localRec.bytes)}`
+                  : "Streaming from cloud · play to cache"}
+              </Text>
             </>
           ) : (
             <Text style={styles.noAudio}>No audio recorded for this track.</Text>

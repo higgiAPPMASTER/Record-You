@@ -22,6 +22,7 @@ import {
   getListSongsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { getLocalRecording, deleteLocalRecording } from "@/lib/recordings";
 
 function formatDuration(seconds: number | null | undefined): string {
   if (!seconds) return "--:--";
@@ -66,8 +67,12 @@ export default function LibraryScreen() {
       }
       setPlayingId(null);
 
+      // Prefer the local copy on device — instant, no network needed
+      const local = await getLocalRecording(id);
+      const playUri = local?.uri ?? audioUrl;
+
       const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrl },
+        { uri: playUri },
         { shouldPlay: true }
       );
       soundRef.current = sound;
@@ -99,6 +104,7 @@ export default function LibraryScreen() {
             setPlayingId(null);
           }
           await deleteSong.mutateAsync({ id });
+          await deleteLocalRecording(id);
           queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
         },
       },

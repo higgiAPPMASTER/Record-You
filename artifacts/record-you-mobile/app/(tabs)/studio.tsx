@@ -22,6 +22,7 @@ import {
   useCreateSong,
   getListSongsQueryKey,
 } from "@workspace/api-client-react";
+import { copyRecordingToDevice } from "@/lib/recordings";
 
 type RecordingState = "idle" | "recording" | "paused" | "done";
 
@@ -166,10 +167,14 @@ export default function StudioScreen() {
         data: { title: title.trim(), tags: tags.trim(), notes: notes.trim() },
       });
 
-      const formData = new FormData();
       const filename = "recording." + (Platform.OS === "ios" ? "m4a" : "webm");
       const mimeType = Platform.OS === "ios" ? "audio/m4a" : "audio/webm";
 
+      // 1. Save to device immediately (offline-safe, fast playback later)
+      await copyRecordingToDevice(recordingUriRef.current, song.id, mimeType);
+
+      // 2. Back up to cloud so the song is available cross-device
+      const formData = new FormData();
       formData.append("audio", {
         uri: recordingUriRef.current,
         name: filename,
