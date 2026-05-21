@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useListSongs } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Square, Disc, Loader2, Check, Volume2, SlidersHorizontal, Repeat } from "lucide-react";
+import {
+  Play, Square, Disc, Loader2, Check, Volume2,
+  SlidersHorizontal, Repeat, VolumeX, Zap,
+} from "lucide-react";
 import { useAudioMixer } from "@/hooks/use-audio-mixer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,11 +33,7 @@ function formatDuration(seconds: number) {
 }
 
 function TrackSelector({
-  label,
-  tracks,
-  selectedKey,
-  onChange,
-  disabledKey,
+  label, tracks, selectedKey, onChange, disabledKey,
 }: {
   label: string;
   tracks: MixableTrack[];
@@ -44,10 +43,8 @@ function TrackSelector({
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-        {label}
-      </Label>
-      <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+      <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</Label>
+      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
         {tracks.map((track) => {
           const isSelected = selectedKey === track.key;
           const isDisabled = disabledKey === track.key;
@@ -70,16 +67,12 @@ function TrackSelector({
               <div className="flex items-center gap-2 shrink-0">
                 <span className={cn(
                   "text-[10px] font-mono px-1 rounded",
-                  track.source === "local"
-                    ? "bg-muted text-muted-foreground"
-                    : "bg-primary/10 text-primary"
+                  track.source === "local" ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
                 )}>
                   {track.source === "local" ? "device" : "cloud"}
                 </span>
                 {track.duration != null && (
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {formatDuration(track.duration)}
-                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{formatDuration(track.duration)}</span>
                 )}
                 {isSelected && <Check className="w-4 h-4 text-primary" />}
               </div>
@@ -91,6 +84,38 @@ function TrackSelector({
   );
 }
 
+const FADE_OPTIONS = [0, 1, 2, 3, 5];
+
+function FadePicker({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className="flex gap-0.5">
+        {FADE_OPTIONS.map((s) => (
+          <button
+            key={s}
+            onClick={() => onChange(s)}
+            className={cn(
+              "px-2 py-1 rounded text-[11px] font-mono transition-colors",
+              value === s
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            )}
+          >
+            {s}s
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PanLabel(v: number) {
+  if (v < -0.05) return `L${Math.round(Math.abs(v) * 100)}`;
+  if (v > 0.05) return `R${Math.round(v * 100)}`;
+  return "C";
+}
+
 export default function Mixer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -100,35 +125,17 @@ export default function Mixer() {
   const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
   useEffect(() => { setLocalSongs(listLocalSongs()); }, []);
 
-  // Combine local + cloud into a unified mixable list (skip duplicates: local songs
-  // that are already uploaded appear as both — prefer the cloud version so it has a
-  // stable API audio URL, unless it's local-only)
   const tracks: MixableTrack[] = (() => {
     const items: MixableTrack[] = [];
-    // Cloud songs first (they have server-side audio)
     for (const s of cloudSongs) {
       if (s.hasAudio && typeof s.audioUrl === "string") {
-        items.push({
-          key: `cloud-${s.id}`,
-          title: s.title,
-          duration: s.duration ?? null,
-          source: "cloud",
-          cloudId: s.id,
-          cloudAudioUrl: s.audioUrl,
-        });
+        items.push({ key: `cloud-${s.id}`, title: s.title, duration: s.duration ?? null, source: "cloud", cloudId: s.id, cloudAudioUrl: s.audioUrl });
       }
     }
-    // Local songs — skip any that have already been uploaded (cloudId present, already in list)
     const cloudedLocalIds = new Set(localSongs.map((s) => s.cloudId).filter(Boolean));
     for (const s of localSongs) {
-      if (s.cloudId && cloudedLocalIds.has(s.cloudId)) continue; // already represented
-      items.push({
-        key: `local-${s.id}`,
-        title: s.title,
-        duration: s.duration || null,
-        source: "local",
-        localId: s.id,
-      });
+      if (s.cloudId && cloudedLocalIds.has(s.cloudId)) continue;
+      items.push({ key: `local-${s.id}`, title: s.title, duration: s.duration || null, source: "local", localId: s.id });
     }
     return items;
   })();
@@ -140,10 +147,17 @@ export default function Mixer() {
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
 
   const {
-    state, error, mixDuration, recordedBlob,
-    track1Volume, track2Volume, loop,
-    setTrack1Volume, setTrack2Volume, setLoop,
-    loadTracks, play, stop, startRecording, stopRecording, reset, elapsedTime,
+    state, error, mixDuration, recordedBlob, elapsedTime,
+    track1Volume, track2Volume, track1Pan, track2Pan,
+    track1Mute, track2Mute, track1Solo, track2Solo,
+    fadeInDuration, fadeOutDuration, loop,
+    setTrack1Volume, setTrack2Volume,
+    setTrack1Pan, setTrack2Pan,
+    setTrack1Mute, setTrack2Mute,
+    setTrack1Solo, setTrack2Solo,
+    setFadeInDuration, setFadeOutDuration,
+    setLoop,
+    loadTracks, play, stop, startRecording, stopRecording, reset, elapsedTime: _et,
   } = useAudioMixer();
 
   const track1 = tracks.find((t) => t.key === track1Key) ?? null;
@@ -155,7 +169,7 @@ export default function Mixer() {
     if (track.source === "cloud" && track.cloudAudioUrl) return track.cloudAudioUrl;
     if (track.source === "local" && track.localId) {
       const url = await getLocalAudioUrl(track.localId);
-      if (!url) throw new Error(`No audio found on device for "${track.title}". Try recording it again.`);
+      if (!url) throw new Error(`No audio found on device for "${track.title}".`);
       return url;
     }
     throw new Error(`No audio URL for "${track.title}"`);
@@ -165,31 +179,19 @@ export default function Mixer() {
     if (!track1 || !track2) return;
     setIsLoadingTracks(true);
     try {
-      const [url1, url2] = await Promise.all([
-        resolveAudioUrl(track1),
-        resolveAudioUrl(track2),
-      ]);
+      const [url1, url2] = await Promise.all([resolveAudioUrl(track1), resolveAudioUrl(track2)]);
       await loadTracks(
         { id: track1.cloudId ?? 0, title: track1.title, audioUrl: url1 },
         { id: track2.cloudId ?? 0, title: track2.title, audioUrl: url2 },
       );
     } catch (err) {
-      toast({
-        title: "Could not load track",
-        description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
-      });
+      toast({ title: "Could not load track", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setIsLoadingTracks(false);
     }
   };
 
-  const handleReset = () => {
-    reset();
-    setTrack1Key(null);
-    setTrack2Key(null);
-    setMixTitle("");
-  };
+  const handleReset = () => { reset(); setTrack1Key(null); setTrack2Key(null); setMixTitle(""); };
 
   const handleSaveMix = async () => {
     if (!recordedBlob || !mixTitle.trim()) return;
@@ -197,27 +199,17 @@ export default function Mixer() {
     try {
       const song = await new Promise<{ id: number }>((resolve, reject) => {
         createSong.mutate(
-          {
-            data: {
-              title: mixTitle.trim(),
-              notes: `Mixed from: ${track1?.title ?? "Track A"} + ${track2?.title ?? "Track B"}`,
-              tags: "mix",
-            },
-          },
+          { data: { title: mixTitle.trim(), notes: `Mixed from: ${track1?.title ?? "Track A"} + ${track2?.title ?? "Track B"}`, tags: "mix" } },
           { onSuccess: resolve, onError: reject }
         );
       });
-
       const formData = new FormData();
       formData.append("audio", recordedBlob, "mix.webm");
       formData.append("duration", String(mixDuration));
-
       const res = await fetch(`/api/songs/${song.id}/audio`, { method: "POST", body: formData });
       if (!res.ok) throw new Error("Failed to upload mix audio");
-
       await queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetSongStatsQueryKey() });
-
       toast({ title: "Mix saved!", description: `"${mixTitle.trim()}" added to your library.` });
       handleReset();
     } catch {
@@ -226,6 +218,25 @@ export default function Mixer() {
       setIsSaving(false);
     }
   };
+
+  const trackControls = [
+    {
+      label: "Track A", title: track1?.title ?? "",
+      volume: track1Volume, setVolume: setTrack1Volume,
+      pan: track1Pan, setPan: setTrack1Pan,
+      mute: track1Mute, setMute: setTrack1Mute,
+      solo: track1Solo, setSolo: setTrack1Solo,
+    },
+    {
+      label: "Track B", title: track2?.title ?? "",
+      volume: track2Volume, setVolume: setTrack2Volume,
+      pan: track2Pan, setPan: setTrack2Pan,
+      mute: track2Mute, setMute: setTrack2Mute,
+      solo: track2Solo, setSolo: setTrack2Solo,
+    },
+  ];
+
+  const isActive = state === "playing" || state === "recording";
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -245,62 +256,94 @@ export default function Mixer() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Track selection (idle only) */}
           {state === "idle" && (
             <div className="grid grid-cols-2 gap-6">
-              <div className="rounded-xl border border-border bg-card p-5 space-y-5">
-                <TrackSelector
-                  label="Track A"
-                  tracks={tracks}
-                  selectedKey={track1Key}
-                  onChange={setTrack1Key}
-                  disabledKey={track2Key}
-                />
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Volume2 className="w-4 h-4 text-muted-foreground" />
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Volume A</Label>
-                    <span className="ml-auto font-mono text-xs text-muted-foreground">{Math.round(track1Volume * 100)}%</span>
+              {[
+                { label: "Track A", key: track1Key, setKey: setTrack1Key, disabledKey: track2Key, vol: track1Volume, setVol: setTrack1Volume },
+                { label: "Track B", key: track2Key, setKey: setTrack2Key, disabledKey: track1Key, vol: track2Volume, setVol: setTrack2Volume },
+              ].map(({ label, key, setKey, disabledKey, vol, setVol }) => (
+                <div key={label} className="rounded-xl border border-border bg-card p-5 space-y-5">
+                  <TrackSelector label={label} tracks={tracks} selectedKey={key} onChange={setKey} disabledKey={disabledKey} />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-muted-foreground" />
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Volume {label.split(" ")[1]}</Label>
+                      <span className="ml-auto font-mono text-xs text-muted-foreground">{Math.round(vol * 100)}%</span>
+                    </div>
+                    <Slider min={0} max={1} step={0.01} value={[vol]} onValueChange={([v]) => setVol(v)} />
                   </div>
-                  <Slider min={0} max={1} step={0.01} value={[track1Volume]} onValueChange={([v]) => setTrack1Volume(v)} />
                 </div>
-              </div>
-
-              <div className="rounded-xl border border-border bg-card p-5 space-y-5">
-                <TrackSelector
-                  label="Track B"
-                  tracks={tracks}
-                  selectedKey={track2Key}
-                  onChange={setTrack2Key}
-                  disabledKey={track1Key}
-                />
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Volume2 className="w-4 h-4 text-muted-foreground" />
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Volume B</Label>
-                    <span className="ml-auto font-mono text-xs text-muted-foreground">{Math.round(track2Volume * 100)}%</span>
-                  </div>
-                  <Slider min={0} max={1} step={0.01} value={[track2Volume]} onValueChange={([v]) => setTrack2Volume(v)} />
-                </div>
-              </div>
+              ))}
             </div>
           )}
 
+          {/* Live track controls (after loading) */}
           {isLoaded && (
             <div className="rounded-xl border border-border bg-card p-5">
               <div className="grid grid-cols-2 gap-8">
-                {[
-                  { label: "Track A", title: track1?.title ?? "", volume: track1Volume, setVolume: setTrack1Volume },
-                  { label: "Track B", title: track2?.title ?? "", volume: track2Volume, setVolume: setTrack2Volume },
-                ].map(({ label, title, volume, setVolume }) => (
-                  <div key={label} className="space-y-3">
-                    <div className="flex items-center justify-between">
+                {trackControls.map(({ label, title, volume, setVolume, pan, setPan, mute, setMute, solo, setSolo }) => (
+                  <div key={label} className="space-y-4">
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold uppercase tracking-wider text-primary">{label}</span>
-                      <span className="font-medium text-sm truncate max-w-[160px]">{title}</span>
+                      <span className="font-medium text-sm truncate max-w-[140px]">{title}</span>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setMute(!mute)}
+                          title={mute ? "Unmute" : "Mute"}
+                          className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors",
+                            mute ? "bg-destructive/20 border-destructive text-destructive" : "border-border text-muted-foreground hover:border-destructive/50"
+                          )}
+                        >
+                          <VolumeX className="w-3 h-3" /> M
+                        </button>
+                        <button
+                          onClick={() => setSolo(!solo)}
+                          title={solo ? "Unsolo" : "Solo this track"}
+                          className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors",
+                            solo ? "bg-yellow-500/20 border-yellow-500 text-yellow-500" : "border-border text-muted-foreground hover:border-yellow-500/50"
+                          )}
+                        >
+                          <Zap className="w-3 h-3" /> S
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
-                      <Slider min={0} max={1} step={0.01} value={[volume]} onValueChange={([v]) => setVolume(v)} disabled={state === "recording"} />
-                      <span className="font-mono text-xs text-muted-foreground w-8 text-right">{Math.round(volume * 100)}%</span>
+
+                    {/* Volume */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Vol</span>
+                        <span className="ml-auto font-mono text-[11px] text-muted-foreground">{Math.round(volume * 100)}%</span>
+                      </div>
+                      <Slider
+                        min={0} max={1} step={0.01}
+                        value={[volume]}
+                        onValueChange={([v]) => setVolume(v)}
+                        disabled={state === "recording"}
+                      />
+                    </div>
+
+                    {/* Pan */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Pan</span>
+                        <span className="ml-auto font-mono text-[11px] text-muted-foreground">{PanLabel(pan)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground">L</span>
+                        <Slider
+                          min={-1} max={1} step={0.01}
+                          value={[pan]}
+                          onValueChange={([v]) => setPan(v)}
+                          disabled={state === "recording"}
+                          className="flex-1"
+                        />
+                        <span className="text-[10px] text-muted-foreground">R</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -308,33 +351,35 @@ export default function Mixer() {
             </div>
           )}
 
+          {/* Transport */}
           <div className="rounded-xl border border-border bg-card p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 {state === "recording" && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />}
                 {state === "playing" && <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />}
                 <span className="text-sm font-medium text-muted-foreground">
                   {state === "idle" ? "Select two tracks above"
                     : state === "loading" ? "Loading tracks..."
-                    : state === "ready" ? "Ready to play or record"
-                    : state === "playing" ? "Previewing mix..."
-                    : state === "recording" ? "Recording mix..."
+                    : state === "ready" ? "Ready"
+                    : state === "playing" ? "Previewing..."
+                    : state === "recording" ? "Recording..."
                     : "Mix captured"}
                 </span>
               </div>
-              {(state === "playing" || state === "recording") && (
+              {isActive && (
                 <span className="font-mono text-2xl font-bold tabular-nums">
                   {formatDuration(elapsedTime)}
                   <span className="text-sm font-normal text-muted-foreground ml-1">/ {formatDuration(Math.ceil(mixDuration))}</span>
                 </span>
               )}
               {state === "ready" && mixDuration > 0 && (
-                <span className="font-mono text-sm text-muted-foreground">Mix length: {formatDuration(Math.ceil(mixDuration))}</span>
+                <span className="font-mono text-sm text-muted-foreground">{formatDuration(Math.ceil(mixDuration))}</span>
               )}
             </div>
 
-            {(state === "playing" || state === "recording") && mixDuration > 0 && (
-              <div className="w-full h-1.5 bg-muted rounded-full mb-6 overflow-hidden">
+            {/* Progress bar */}
+            {isActive && mixDuration > 0 && (
+              <div className="w-full h-1.5 bg-muted rounded-full mb-5 overflow-hidden">
                 <div
                   className={cn("h-full rounded-full transition-all", state === "recording" ? "bg-red-500" : "bg-primary")}
                   style={{ width: `${Math.min((elapsedTime / mixDuration) * 100, 100)}%` }}
@@ -342,6 +387,24 @@ export default function Mixer() {
               </div>
             )}
 
+            {/* Fade + loop controls */}
+            {(state === "ready" || state === "idle") && (
+              <div className="flex flex-wrap gap-4 mb-5 pb-5 border-b border-border">
+                <FadePicker label="Fade in" value={fadeInDuration} onChange={setFadeInDuration} />
+                <FadePicker label="Fade out" value={fadeOutDuration} onChange={setFadeOutDuration} />
+                <button
+                  onClick={() => setLoop(!loop)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                    loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                  )}
+                >
+                  <Repeat className="w-3.5 h-3.5" /> Loop
+                </button>
+              </div>
+            )}
+
+            {/* Action buttons */}
             <div className="flex items-center gap-3 flex-wrap">
               {state === "idle" && (
                 <Button onClick={handleLoad} disabled={!canLoad || isLoadingTracks} className="gap-2">
@@ -349,56 +412,43 @@ export default function Mixer() {
                   {isLoadingTracks ? "Loading..." : "Load Tracks"}
                 </Button>
               )}
-
               {state === "ready" && (
                 <>
                   <Button variant="outline" onClick={play} className="gap-2">
                     <Play className="w-4 h-4" /> Preview Mix
                   </Button>
-                  <button
-                    onClick={() => setLoop(!loop)}
-                    title={loop ? "Loop on" : "Loop off"}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors",
-                      loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                    )}
-                  >
-                    <Repeat className="w-3.5 h-3.5" /> Loop
-                  </button>
                   <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
                     <span className="w-3 h-3 rounded-full bg-white" /> Record Mix
                   </Button>
                   <Button variant="ghost" onClick={handleReset} className="ml-auto text-muted-foreground">Start Over</Button>
                 </>
               )}
-
               {state === "playing" && (
                 <Button variant="outline" onClick={stop} className="gap-2">
-                  <Square className="w-4 h-4" /> Stop Preview
+                  <Square className="w-4 h-4" /> Stop
                 </Button>
               )}
-
               {state === "recording" && (
                 <Button onClick={stopRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
                   <Square className="w-4 h-4" /> Stop Recording
                 </Button>
               )}
-
               {state === "done" && !recordedBlob && (
                 <span className="text-muted-foreground text-sm">Processing...</span>
               )}
             </div>
           </div>
 
+          {/* Save mix */}
           {state === "done" && recordedBlob && (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-6 space-y-4">
               <h2 className="font-semibold text-lg">Save Your Mix</h2>
-              <p className="text-sm text-muted-foreground">Give your mix a name and it will be added to your library as a new track.</p>
+              <p className="text-sm text-muted-foreground">Give your mix a name — it'll be added to your library as a new track.</p>
               <div className="space-y-2">
                 <Label htmlFor="mix-title">Mix Title</Label>
                 <Input
                   id="mix-title"
-                  placeholder="e.g. Verse Jam — May 19"
+                  placeholder="e.g. Verse Jam — May 21"
                   value={mixTitle}
                   onChange={(e) => setMixTitle(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSaveMix()}
@@ -417,11 +467,6 @@ export default function Mixer() {
           {error && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <strong>Error:</strong> {error}
-              {error.includes("decode") && (
-                <span className="block mt-1 text-destructive/70">
-                  Your browser may not support this audio format. Try a different browser (Chrome works best).
-                </span>
-              )}
             </div>
           )}
         </div>
