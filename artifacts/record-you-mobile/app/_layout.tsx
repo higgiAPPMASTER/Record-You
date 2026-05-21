@@ -30,6 +30,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="song/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="tools" options={{ headerShown: false }} />
     </Stack>
   );
 }
