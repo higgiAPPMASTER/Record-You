@@ -38,33 +38,25 @@ export function useAudioMixer(): UseAudioMixerResult {
   const [loop, setLoop] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const buffer1Ref = useRef<AudioBuffer | null>(null);
-  const buffer2Ref = useRef<AudioBuffer | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const el1Ref = useRef<HTMLAudioElement | null>(null);
+  const el2Ref = useRef<HTMLAudioElement | null>(null);
   const gain1Ref = useRef<GainNode | null>(null);
   const gain2Ref = useRef<GainNode | null>(null);
-  const source1Ref = useRef<AudioBufferSourceNode | null>(null);
-  const source2Ref = useRef<AudioBufferSourceNode | null>(null);
+  const src1Ref = useRef<MediaElementAudioSourceNode | null>(null);
+  const src2Ref = useRef<MediaElementAudioSourceNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const loopRef = useRef<boolean>(loop);
-  const stateRef = useRef<MixerState>("idle");
   const playTimeoutRef = useRef<number | null>(null);
-
-  // Keep refs in sync
+  const startTimeRef = useRef<number>(0);
+  const loopRef = useRef(loop);
+  const stateRef = useRef<MixerState>("idle");
   loopRef.current = loop;
   stateRef.current = state;
 
   const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (playTimeoutRef.current) {
-      clearTimeout(playTimeoutRef.current);
-      playTimeoutRef.current = null;
-    }
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (playTimeoutRef.current) { clearTimeout(playTimeoutRef.current); playTimeoutRef.current = null; }
   }, []);
 
   const startTimer = useCallback(() => {
@@ -74,25 +66,6 @@ export function useAudioMixer(): UseAudioMixerResult {
     }, 200);
   }, []);
 
-  const fetchBuffer = async (ctx: AudioContext, url: string): Promise<AudioBuffer> => {
-    let arrayBuffer: ArrayBuffer;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Could not load this track (HTTP ${res.status}). Check that the song has audio recorded.`);
-      arrayBuffer = await res.arrayBuffer();
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("HTTP")) throw err;
-      throw new Error(`Could not load this track. Check your internet connection and try again.`);
-    }
-    try {
-      return await ctx.decodeAudioData(arrayBuffer);
-    } catch {
-      throw new Error(
-        `Could not decode this audio track. Your browser may not support the format (webm/opus). Try Chrome for best compatibility.`
-      );
-    }
-  };
-
   const loadTracks = useCallback(async (track1: Track, track2: Track) => {
     setError(null);
     setState("loading");
@@ -100,29 +73,56 @@ export function useAudioMixer(): UseAudioMixerResult {
     setElapsedTime(0);
 
     try {
-      const ctx = new AudioContext();
-      audioCtxRef.current = ctx;
+      // Create audio elements — let the browser handle format detection
+      const audio1 = new Audio();
+      const audio2 = new Audio();
+      audio1.crossOrigin = "anonymous";
+      audio2.crossOrigin = "anonymous";
+      audio1.preload = "auto";
+      audio2.preload = "auto";
 
-      const [buf1, buf2] = await Promise.all([
-        fetchBuffer(ctx, track1.audioUrl),
-        fetchBuffer(ctx, track2.audioUrl),
+      // Wait for both tracks to load enough to determine duration
+      await Promise.all([
+        new Promise<void>((resolve, reject) => {
+          audio1.onerror = () => reject(new Error(
+            `Could not load "${track1.title}". Make sure it has audio recorded and try again.`
+          ));
+          audio1.oncanplaythrough = () => resolve();
+          audio1.src = track1.audioUrl;
+          audio1.load();
+        }),
+        new Promise<void>((resolve, reject) => {
+          audio2.onerror = () => reject(new Error(
+            `Could not load "${track2.title}". Make sure it has audio recorded and try again.`
+          ));
+          audio2.oncanplaythrough = () => resolve();
+          audio2.src = track2.audioUrl;
+          audio2.load();
+        }),
       ]);
 
-      buffer1Ref.current = buf1;
-      buffer2Ref.current = buf2;
+      const dur = Math.max(audio1.duration || 0, audio2.duration || 0);
 
+      // Build Web Audio graph using MediaElementSource — no decodeAudioData needed
+      const ctx = new AudioContext();
+      const src1 = ctx.createMediaElementSource(audio1);
+      const src2 = ctx.createMediaElementSource(audio2);
       const gain1 = ctx.createGain();
-      gain1.gain.value = track1Volume;
-      gain1Ref.current = gain1;
-
       const gain2 = ctx.createGain();
+      gain1.gain.value = track1Volume;
       gain2.gain.value = track2Volume;
+      src1.connect(gain1).connect(ctx.destination);
+      src2.connect(gain2).connect(ctx.destination);
+
+      ctxRef.current = ctx;
+      el1Ref.current = audio1;
+      el2Ref.current = audio2;
+      src1Ref.current = src1;
+      src2Ref.current = src2;
+      gain1Ref.current = gain1;
       gain2Ref.current = gain2;
 
-      gain1.connect(ctx.destination);
-      gain2.connect(ctx.destination);
-
-      setMixDuration(Math.max(buf1.duration, buf2.duration));
+      setMixDuration(dur);
       setState("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load tracks");
@@ -130,143 +130,135 @@ export function useAudioMixer(): UseAudioMixerResult {
     }
   }, [track1Volume, track2Volume]);
 
-  const createSources = useCallback(() => {
-    const ctx = audioCtxRef.current;
-    const buf1 = buffer1Ref.current;
-    const buf2 = buffer2Ref.current;
+  const stopPlayback = useCallback(() => {
+    el1Ref.current?.pause();
+    el2Ref.current?.pause();
+    if (el1Ref.current) el1Ref.current.currentTime = 0;
+    if (el2Ref.current) el2Ref.current.currentTime = 0;
+  }, []);
+
+  const play = useCallback(() => {
+    const ctx = ctxRef.current;
+    const el1 = el1Ref.current;
+    const el2 = el2Ref.current;
     const gain1 = gain1Ref.current;
     const gain2 = gain2Ref.current;
-    if (!ctx || !buf1 || !buf2 || !gain1 || !gain2) return;
+    if (!ctx || !el1 || !el2 || !gain1 || !gain2) return;
 
     gain1.gain.value = track1Volume;
     gain2.gain.value = track2Volume;
 
-    const src1 = ctx.createBufferSource();
-    src1.buffer = buf1;
-    src1.connect(gain1);
-    source1Ref.current = src1;
+    if (ctx.state === "suspended") ctx.resume();
+    el1.currentTime = 0;
+    el2.currentTime = 0;
+    el1.play();
+    el2.play();
 
-    const src2 = ctx.createBufferSource();
-    src2.buffer = buf2;
-    src2.connect(gain2);
-    source2Ref.current = src2;
-  }, [track1Volume, track2Volume]);
-
-  const stopSources = useCallback(() => {
-    try { source1Ref.current?.stop(); } catch (_) {}
-    try { source2Ref.current?.stop(); } catch (_) {}
-    source1Ref.current = null;
-    source2Ref.current = null;
-  }, []);
-
-  // Internal play that can restart itself when looping
-  const playOnce = useCallback(() => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    stopSources();
-    createSources();
-    source1Ref.current!.start(0);
-    source2Ref.current!.start(0);
-
-    const longestDuration = Math.max(
-      buffer1Ref.current?.duration ?? 0,
-      buffer2Ref.current?.duration ?? 0
-    );
-
-    playTimeoutRef.current = window.setTimeout(() => {
-      if (stateRef.current === "playing") {
-        if (loopRef.current) {
-          // restart for another loop
-          setElapsedTime(0);
-          startTimeRef.current = Date.now();
-          playOnce();
-        } else {
-          clearTimer();
-          setState("ready");
-          setElapsedTime(0);
-        }
-      }
-    }, longestDuration * 1000);
-  }, [createSources, stopSources, clearTimer, startTimer]);
-
-  const play = useCallback(() => {
     setState("playing");
     setElapsedTime(0);
     clearTimer();
     startTimer();
-    playOnce();
-  }, [playOnce, clearTimer, startTimer]);
+
+    const longestDuration = mixDuration;
+    playTimeoutRef.current = window.setTimeout(() => {
+      if (stateRef.current === "playing") {
+        if (loopRef.current) {
+          setElapsedTime(0);
+          startTimeRef.current = Date.now();
+          el1.currentTime = 0;
+          el2.currentTime = 0;
+          el1.play();
+          el2.play();
+        } else {
+          clearTimer();
+          stopPlayback();
+          setState("ready");
+          setElapsedTime(0);
+        }
+      }
+    }, longestDuration * 1000 + 200);
+  }, [track1Volume, track2Volume, mixDuration, clearTimer, startTimer, stopPlayback]);
 
   const stop = useCallback(() => {
-    stopSources();
+    stopPlayback();
     clearTimer();
     setState("ready");
     setElapsedTime(0);
-  }, [stopSources, clearTimer]);
+  }, [stopPlayback, clearTimer]);
 
   const startRecording = useCallback(() => {
-    const ctx = audioCtxRef.current;
+    const ctx = ctxRef.current;
+    const el1 = el1Ref.current;
+    const el2 = el2Ref.current;
     const gain1 = gain1Ref.current;
     const gain2 = gain2Ref.current;
-    if (!ctx || !gain1 || !gain2) return;
+    if (!ctx || !el1 || !el2 || !gain1 || !gain2) return;
 
-    stopSources();
+    gain1.gain.value = track1Volume;
+    gain2.gain.value = track2Volume;
+
+    stopPlayback();
     clearTimer();
 
+    // Route gains → capture destination
     const dest = ctx.createMediaStreamDestination();
     gain1.connect(dest);
     gain2.connect(dest);
 
-    const mediaRecorder = new MediaRecorder(dest.stream);
-    mediaRecorderRef.current = mediaRecorder;
+    const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus" : "audio/webm";
+    const mr = new MediaRecorder(dest.stream, { mimeType: mime });
+    mediaRecorderRef.current = mr;
 
     const chunks: BlobPart[] = [];
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
-      setRecordedBlob(blob);
+    mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    mr.onstop = () => {
+      setRecordedBlob(new Blob(chunks, { type: mr.mimeType || "audio/webm" }));
       setState("done");
     };
 
-    mediaRecorder.start(100);
-    createSources();
-    source1Ref.current!.start(0);
-    source2Ref.current!.start(0);
+    mr.start(100);
+
+    if (ctx.state === "suspended") ctx.resume();
+    el1.currentTime = 0;
+    el2.currentTime = 0;
+    el1.play();
+    el2.play();
+
     setState("recording");
     setElapsedTime(0);
     startTimer();
 
-    const longestDuration = Math.max(
-      buffer1Ref.current?.duration ?? 0,
-      buffer2Ref.current?.duration ?? 0
-    );
     playTimeoutRef.current = window.setTimeout(() => {
       if (mediaRecorderRef.current?.state === "recording") {
         mediaRecorderRef.current.stop();
       }
       clearTimer();
-    }, longestDuration * 1000 + 200);
-  }, [createSources, stopSources, clearTimer, startTimer]);
+    }, (mixDuration || 300) * 1000 + 500);
+  }, [track1Volume, track2Volume, mixDuration, clearTimer, startTimer, stopPlayback]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
-    stopSources();
+    stopPlayback();
     clearTimer();
-  }, [stopSources, clearTimer]);
+  }, [stopPlayback, clearTimer]);
 
   const reset = useCallback(() => {
-    stopSources();
+    stopPlayback();
     clearTimer();
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
     }
-    buffer1Ref.current = null;
-    buffer2Ref.current = null;
+    if (ctxRef.current) {
+      ctxRef.current.close();
+      ctxRef.current = null;
+    }
+    el1Ref.current = null;
+    el2Ref.current = null;
+    src1Ref.current = null;
+    src2Ref.current = null;
     gain1Ref.current = null;
     gain2Ref.current = null;
     mediaRecorderRef.current = null;
@@ -275,25 +267,12 @@ export function useAudioMixer(): UseAudioMixerResult {
     setMixDuration(0);
     setError(null);
     setState("idle");
-  }, [stopSources, clearTimer]);
+  }, [stopPlayback, clearTimer]);
 
   return {
-    state,
-    error,
-    mixDuration,
-    recordedBlob,
-    track1Volume,
-    track2Volume,
-    loop,
-    setTrack1Volume,
-    setTrack2Volume,
-    setLoop,
-    loadTracks,
-    play,
-    stop,
-    startRecording,
-    stopRecording,
-    reset,
-    elapsedTime,
+    state, error, mixDuration, recordedBlob,
+    track1Volume, track2Volume, loop,
+    setTrack1Volume, setTrack2Volume, setLoop,
+    loadTracks, play, stop, startRecording, stopRecording, reset, elapsedTime,
   };
 }
