@@ -1,6 +1,8 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag } from "lucide-react";
+import { useListSongs, useDeleteSong, getListSongsQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag, Cloud, HardDrive } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +17,20 @@ import {
   getLocalBlob,
   type LocalSong,
 } from "@/lib/local-songs";
+
+type UnifiedSong = {
+  key: string;
+  source: "local" | "cloud";
+  id: string | number;
+  title: string;
+  tags: string;
+  duration: number | null;
+  createdAt: number;
+  waveform: number[] | null;
+  mimeType: string;
+  audioUrl: string | null;
+  cloudId: number | null;
+};
 
 function WaveformBars({ peaks, isPlaying }: { peaks: number[]; isPlaying: boolean }) {
   const W = 120;
@@ -45,18 +61,22 @@ function WaveformBars({ peaks, isPlaying }: { peaks: number[]; isPlaying: boolea
 
 export default function Home() {
   const { toast } = useToast();
-  const [songs, setSongs] = useState<LocalSong[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
+  const [isLocalLoading, setIsLocalLoading] = useState(true);
 
-  const [playingId, setPlayingId] = useState<string | null>(null);
+  const { data: cloudSongs = [], isLoading: isCloudLoading } = useListSongs();
+  const deleteCloudSong = useDeleteSong();
+
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentUrlRef = useRef<string | null>(null);
 
   const reload = useCallback(() => {
-    setSongs(listLocalSongs());
-    setIsLoading(false);
+    setLocalSongs(listLocalSongs());
+    setIsLocalLoading(false);
   }, []);
 
   useEffect(() => {
@@ -72,6 +92,43 @@ export default function Home() {
     };
   }, []);
 
+  const isLoading = isLocalLoading || isCloudLoading;
+
+  const songs: UnifiedSong[] = useMemo(() => {
+    const sharedCloudIds = new Set(
+      localSongs.map((s) => s.cloudId).filter((v): v is number => v != null),
+    );
+    const local: UnifiedSong[] = localSongs.map((s) => ({
+      key: `local:${s.id}`,
+      source: "local",
+      id: s.id,
+      title: s.title,
+      tags: s.tags,
+      duration: s.duration,
+      createdAt: s.createdAt,
+      waveform: s.waveform,
+      mimeType: s.mimeType,
+      audioUrl: null,
+      cloudId: s.cloudId,
+    }));
+    const cloud: UnifiedSong[] = cloudSongs
+      .filter((s) => !sharedCloudIds.has(s.id))
+      .map((s) => ({
+        key: `cloud:${s.id}`,
+        source: "cloud",
+        id: s.id,
+        title: s.title,
+        tags: s.tags ?? "",
+        duration: s.duration ?? null,
+        createdAt: new Date(s.createdAt).getTime(),
+        waveform: s.waveformData ?? null,
+        mimeType: "audio/webm",
+        audioUrl: s.audioUrl ?? null,
+        cloudId: s.id,
+      }));
+    return [...local, ...cloud].sort((a, b) => b.createdAt - a.createdAt);
+  }, [localSongs, cloudSongs]);
+
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     songs.forEach((s) => s.tags?.split(",").forEach((t) => tagSet.add(t.trim())));
@@ -86,49 +143,71 @@ export default function Home() {
     });
   }, [songs, search, activeTag]);
 
-  const togglePlay = async (songId: string) => {
-    if (playingId === songId) {
+  const togglePlay = async (song: UnifiedSong) => {
+    if (playingKey === song.key) {
       audioRef.current?.pause();
-      setPlayingId(null);
+      setPlayingKey(null);
       return;
     }
-    const url = await getLocalAudioUrl(songId);
+    let url: string | null = null;
+    if (song.source === "local") {
+      url = await getLocalAudioUrl(String(song.id));
+    } else {
+      url = song.audioUrl;
+    }
     if (!url) {
       toast({ title: "Audio missing", description: "Could not load this recording.", variant: "destructive" });
       return;
     }
     if (audioRef.current) {
-      if (currentUrlRef.current) URL.revokeObjectURL(currentUrlRef.current);
-      currentUrlRef.current = url;
+      if (currentUrlRef.current) {
+        URL.revokeObjectURL(currentUrlRef.current);
+        currentUrlRef.current = null;
+      }
+      if (song.source === "local") currentUrlRef.current = url;
       audioRef.current.src = url;
-      audioRef.current.play().then(() => setPlayingId(songId)).catch(() => {
-        setPlayingId(null);
+      audioRef.current.play().then(() => setPlayingKey(song.key)).catch(() => {
+        setPlayingKey(null);
         toast({ title: "Playback failed", variant: "destructive" });
       });
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this track?")) {
-      if (playingId === id) {
-        audioRef.current?.pause();
-        setPlayingId(null);
-      }
-      await deleteLocalSong(id);
+  const handleDelete = async (song: UnifiedSong) => {
+    if (!window.confirm("Are you sure you want to delete this track?")) return;
+    if (playingKey === song.key) {
+      audioRef.current?.pause();
+      setPlayingKey(null);
+    }
+    if (song.source === "local") {
+      await deleteLocalSong(String(song.id));
       reload();
+    } else {
+      await deleteCloudSong.mutateAsync({ id: Number(song.id) });
+      queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
     }
   };
 
-  const handleDownload = async (id: string, title: string, mimeType: string) => {
-    const blob = await getLocalBlob(id);
+  const handleDownload = async (song: UnifiedSong) => {
+    let blob: Blob | null = null;
+    if (song.source === "local") {
+      blob = await getLocalBlob(String(song.id));
+    } else if (song.audioUrl) {
+      const res = await fetch(song.audioUrl);
+      blob = await res.blob();
+    }
     if (!blob) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+    const ext = song.mimeType.includes("m4a") || song.mimeType.includes("mp4") ? "m4a" : "webm";
     a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.${mimeType.includes("m4a") || mimeType.includes("mp4") ? "m4a" : "webm"}`;
+    a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const detailHref = (song: UnifiedSong) =>
+    song.source === "local" ? `/song/${song.id}` : `/shared/${song.id}`;
 
   const formatDuration = (seconds: number | null | undefined) => {
     if (!seconds) return "--:--";
@@ -142,7 +221,7 @@ export default function Home() {
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-4xl font-bold tracking-tight mb-2">Library</h1>
-          <p className="text-muted-foreground text-lg">Your recordings — saved on this device.</p>
+          <p className="text-muted-foreground text-lg">Your recordings — device + cloud.</p>
         </div>
         <Button asChild size="lg" className="rounded-full px-8 gap-2 font-medium">
           <Link href="/record">
@@ -194,7 +273,7 @@ export default function Home() {
         </div>
       )}
 
-      <audio ref={audioRef} onEnded={() => setPlayingId(null)} className="hidden" />
+      <audio ref={audioRef} onEnded={() => setPlayingKey(null)} className="hidden" />
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -206,21 +285,21 @@ export default function Home() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {filtered.map((song) => (
             <Card
-              key={song.id}
-              data-testid={`card-song-${song.id}`}
+              key={song.key}
+              data-testid={`card-song-${song.source}-${song.id}`}
               className="group overflow-hidden border-border/50 bg-card hover:bg-accent/10 transition-all"
             >
               <div className="flex items-center p-4 gap-4 h-full">
                 <Button
-                  data-testid={`button-play-${song.id}`}
+                  data-testid={`button-play-${song.source}-${song.id}`}
                   variant="secondary"
                   size="icon"
                   className={`w-14 h-14 rounded-full flex-shrink-0 transition-colors ${
-                    playingId === song.id ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""
+                    playingKey === song.key ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""
                   }`}
-                  onClick={() => togglePlay(song.id)}
+                  onClick={() => togglePlay(song)}
                 >
-                  {playingId === song.id ? (
+                  {playingKey === song.key ? (
                     <Pause className="w-6 h-6" />
                   ) : (
                     <Play className="w-6 h-6 translate-x-[1px]" />
@@ -229,7 +308,7 @@ export default function Home() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-1">
-                    <Link href={`/song/${song.id}`} className="block">
+                    <Link href={detailHref(song)} className="block">
                       <h3 className="font-semibold text-lg truncate hover:text-primary transition-colors">
                         {song.title}
                       </h3>
@@ -246,20 +325,20 @@ export default function Home() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/song/${song.id}`} className="cursor-pointer">
+                          <Link href={detailHref(song)} className="cursor-pointer">
                             <Edit3 className="w-4 h-4 mr-2" />
                             Details
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          data-testid={`button-download-${song.id}`}
-                          onClick={() => handleDownload(song.id, song.title, song.mimeType)}
+                          data-testid={`button-download-${song.source}-${song.id}`}
+                          onClick={() => handleDownload(song)}
                         >
                           <Download className="w-4 h-4 mr-2" />
                           Download
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => handleDelete(song.id)}
+                          onClick={() => handleDelete(song)}
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash className="w-4 h-4 mr-2" />
@@ -269,7 +348,15 @@ export default function Home() {
                     </DropdownMenu>
                   </div>
 
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2 font-mono">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2 font-mono flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      {song.source === "local" ? (
+                        <HardDrive className="w-3.5 h-3.5" />
+                      ) : (
+                        <Cloud className="w-3.5 h-3.5" />
+                      )}
+                      {song.source === "local" ? "Device" : "Cloud"}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5" />
                       {formatDuration(song.duration)}
@@ -280,7 +367,7 @@ export default function Home() {
                     </div>
                     {song.waveform && song.waveform.length > 0 && (
                       <div className="ml-auto">
-                        <WaveformBars peaks={song.waveform} isPlaying={playingId === song.id} />
+                        <WaveformBars peaks={song.waveform} isPlaying={playingKey === song.key} />
                       </div>
                     )}
                   </div>
