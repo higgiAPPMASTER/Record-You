@@ -8,6 +8,10 @@
 
 export * from './collabSong';
 export * from './collabTrack';
+export * from './communityPost';
+export * from './communityPostInput';
+export * from './communityPostInputVisibility';
+export * from './communityPostVisibility';
 export * from './healthStatus';
 export * from './publishInput';
 export * from './session';

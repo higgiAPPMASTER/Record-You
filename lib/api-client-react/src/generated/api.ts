@@ -22,6 +22,8 @@ import type {
 import type {
   CollabSong,
   CollabTrack,
+  CommunityPost,
+  CommunityPostInput,
   HealthStatus,
   PublishInput,
   Session,
@@ -938,4 +940,376 @@ export const useDeleteSong = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeleteSongMutationOptions(options));
     }
+
+export const getListCommunityPostsUrl = () => {
+
+
+
+
+  return `/api/community`
+}
+
+/**
+ * @summary List all public community posts
+ */
+export const listCommunityPosts = async ( options?: RequestInit): Promise<CommunityPost[]> => {
+
+  return customFetch<CommunityPost[]>(getListCommunityPostsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCommunityPostsQueryKey = () => {
+    return [
+    `/api/community`
+    ] as const;
+    }
+
+
+export const getListCommunityPostsQueryOptions = <TData = Awaited<ReturnType<typeof listCommunityPosts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommunityPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCommunityPostsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityPosts>>> = ({ signal }) => listCommunityPosts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCommunityPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCommunityPostsQueryResult = NonNullable<Awaited<ReturnType<typeof listCommunityPosts>>>
+export type ListCommunityPostsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all public community posts
+ */
+
+export function useListCommunityPosts<TData = Awaited<ReturnType<typeof listCommunityPosts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommunityPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCommunityPostsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateCommunityPostUrl = () => {
+
+
+
+
+  return `/api/community`
+}
+
+/**
+ * @summary Share a recording to the community (auth required)
+ */
+export const createCommunityPost = async (communityPostInput: CommunityPostInput, options?: RequestInit): Promise<CommunityPost> => {
+
+  return customFetch<CommunityPost>(getCreateCommunityPostUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      communityPostInput,)
+  }
+);}
+
+
+
+
+export const getCreateCommunityPostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityPost>>, TError,{data: BodyType<CommunityPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCommunityPost>>, TError,{data: BodyType<CommunityPostInput>}, TContext> => {
+
+const mutationKey = ['createCommunityPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCommunityPost>>, {data: BodyType<CommunityPostInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCommunityPost(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCommunityPostMutationResult = NonNullable<Awaited<ReturnType<typeof createCommunityPost>>>
+    export type CreateCommunityPostMutationBody = BodyType<CommunityPostInput>
+    export type CreateCommunityPostMutationError = ErrorType<void>
+
+    /**
+ * @summary Share a recording to the community (auth required)
+ */
+export const useCreateCommunityPost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityPost>>, TError,{data: BodyType<CommunityPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCommunityPost>>,
+        TError,
+        {data: BodyType<CommunityPostInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCommunityPostMutationOptions(options));
+    }
+
+export const getListMyCommunityPostsUrl = () => {
+
+
+
+
+  return `/api/community/mine`
+}
+
+/**
+ * @summary List your own community posts (auth required)
+ */
+export const listMyCommunityPosts = async ( options?: RequestInit): Promise<CommunityPost[]> => {
+
+  return customFetch<CommunityPost[]>(getListMyCommunityPostsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyCommunityPostsQueryKey = () => {
+    return [
+    `/api/community/mine`
+    ] as const;
+    }
+
+
+export const getListMyCommunityPostsQueryOptions = <TData = Awaited<ReturnType<typeof listMyCommunityPosts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyCommunityPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyCommunityPostsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyCommunityPosts>>> = ({ signal }) => listMyCommunityPosts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyCommunityPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyCommunityPostsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyCommunityPosts>>>
+export type ListMyCommunityPostsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List your own community posts (auth required)
+ */
+
+export function useListMyCommunityPosts<TData = Awaited<ReturnType<typeof listMyCommunityPosts>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyCommunityPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyCommunityPostsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getDeleteCommunityPostUrl = (id: number,) => {
+
+
+
+
+  return `/api/community/${id}`
+}
+
+/**
+ * @summary Delete your own community post (auth required)
+ */
+export const deleteCommunityPost = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteCommunityPostUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteCommunityPostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityPost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityPost>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteCommunityPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCommunityPost>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCommunityPost(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCommunityPostMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCommunityPost>>>
+
+    export type DeleteCommunityPostMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete your own community post (auth required)
+ */
+export const useDeleteCommunityPost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityPost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCommunityPost>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCommunityPostMutationOptions(options));
+    }
+
+export const getGetListenPostUrl = (token: string,) => {
+
+
+
+
+  return `/api/listen/${token}`
+}
+
+/**
+ * @summary Get a friends-only listen post by token (no auth required)
+ */
+export const getListenPost = async (token: string, options?: RequestInit): Promise<CommunityPost> => {
+
+  return customFetch<CommunityPost>(getGetListenPostUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetListenPostQueryKey = (token: string,) => {
+    return [
+    `/api/listen/${token}`
+    ] as const;
+    }
+
+
+export const getGetListenPostQueryOptions = <TData = Awaited<ReturnType<typeof getListenPost>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getListenPost>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetListenPostQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getListenPost>>> = ({ signal }) => getListenPost(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(token), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getListenPost>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetListenPostQueryResult = NonNullable<Awaited<ReturnType<typeof getListenPost>>>
+export type GetListenPostQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a friends-only listen post by token (no auth required)
+ */
+
+export function useGetListenPost<TData = Awaited<ReturnType<typeof getListenPost>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getListenPost>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetListenPostQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 

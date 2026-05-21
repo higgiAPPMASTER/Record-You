@@ -235,3 +235,85 @@ export const DeleteSongParams = zod.object({
 })
 
 
+/**
+ * @summary List all public community posts
+ */
+export const ListCommunityPostsResponseItem = zod.object({
+  "id": zod.number(),
+  "songId": zod.number(),
+  "userId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "visibility": zod.enum(['public', 'friends']),
+  "listenToken": zod.string().nullish(),
+  "title": zod.string(),
+  "hasAudio": zod.boolean(),
+  "duration": zod.number().nullish(),
+  "audioUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCommunityPostsResponse = zod.array(ListCommunityPostsResponseItem)
+
+
+/**
+ * @summary Share a recording to the community (auth required)
+ */
+export const CreateCommunityPostBody = zod.object({
+  "songId": zod.number(),
+  "displayName": zod.string().optional(),
+  "note": zod.string().optional(),
+  "visibility": zod.enum(['public', 'friends'])
+})
+
+
+/**
+ * @summary List your own community posts (auth required)
+ */
+export const ListMyCommunityPostsResponseItem = zod.object({
+  "id": zod.number(),
+  "songId": zod.number(),
+  "userId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "visibility": zod.enum(['public', 'friends']),
+  "listenToken": zod.string().nullish(),
+  "title": zod.string(),
+  "hasAudio": zod.boolean(),
+  "duration": zod.number().nullish(),
+  "audioUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyCommunityPostsResponse = zod.array(ListMyCommunityPostsResponseItem)
+
+
+/**
+ * @summary Delete your own community post (auth required)
+ */
+export const DeleteCommunityPostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Get a friends-only listen post by token (no auth required)
+ */
+export const GetListenPostParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetListenPostResponse = zod.object({
+  "id": zod.number(),
+  "songId": zod.number(),
+  "userId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "visibility": zod.enum(['public', 'friends']),
+  "listenToken": zod.string().nullish(),
+  "title": zod.string(),
+  "hasAudio": zod.boolean(),
+  "duration": zod.number().nullish(),
+  "audioUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+

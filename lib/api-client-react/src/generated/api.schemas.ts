@@ -120,3 +120,46 @@ export interface SongStats {
   recentSongs: Song[];
 }
 
+export type CommunityPostVisibility = typeof CommunityPostVisibility[keyof typeof CommunityPostVisibility];
+
+
+export const CommunityPostVisibility = {
+  public: 'public',
+  friends: 'friends',
+} as const;
+
+export interface CommunityPost {
+  id: number;
+  songId: number;
+  userId: string;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  note?: string | null;
+  visibility: CommunityPostVisibility;
+  /** @nullable */
+  listenToken?: string | null;
+  title: string;
+  hasAudio: boolean;
+  /** @nullable */
+  duration?: number | null;
+  /** @nullable */
+  audioUrl?: string | null;
+  createdAt: string;
+}
+
+export type CommunityPostInputVisibility = typeof CommunityPostInputVisibility[keyof typeof CommunityPostInputVisibility];
+
+
+export const CommunityPostInputVisibility = {
+  public: 'public',
+  friends: 'friends',
+} as const;
+
+export interface CommunityPostInput {
+  songId: number;
+  displayName?: string;
+  note?: string;
+  visibility: CommunityPostInputVisibility;
+}
+

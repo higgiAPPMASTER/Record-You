@@ -19,6 +19,8 @@ import Tabs from "@/pages/tabs";
 import Capo from "@/pages/capo";
 import Collab from "@/pages/collab";
 import Sessions from "@/pages/sessions";
+import Community from "@/pages/community";
+import Listen from "@/pages/listen";
 
 const queryClient = new QueryClient();
 
@@ -139,6 +141,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/collab/:token" component={Collab} />
+      <Route path="/listen/:token" component={Listen} />
       <Route path="/sign-in/*?" component={() => (
         <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
           <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
@@ -170,6 +173,7 @@ function Router() {
               <Route path="/tabs" component={Tabs} />
               <Route path="/capo" component={Capo} />
               <Route path="/sessions" component={Sessions} />
+              <Route path="/community" component={Community} />
               <Route component={NotFound} />
             </Switch>
           </AppLayout>

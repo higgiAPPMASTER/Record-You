@@ -14,6 +14,8 @@ tags:
     description: Song management
   - name: sessions
     description: Public open sessions board
+  - name: community
+    description: Community sharing
 paths:
   /healthz:
     get:
@@ -240,6 +242,99 @@ paths:
         "404":
           description: Not found
 
+  /community:
+    get:
+      operationId: listCommunityPosts
+      tags: [community]
+      summary: List all public community posts
+      responses:
+        "200":
+          description: Public community posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunityPost"
+    post:
+      operationId: createCommunityPost
+      tags: [community]
+      summary: Share a recording to the community (auth required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityPostInput"
+      responses:
+        "201":
+          description: Created post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPost"
+        "401":
+          description: Unauthorized
+
+  /community/mine:
+    get:
+      operationId: listMyCommunityPosts
+      tags: [community]
+      summary: List your own community posts (auth required)
+      responses:
+        "200":
+          description: Your community posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunityPost"
+        "401":
+          description: Unauthorized
+
+  /community/{id}:
+    delete:
+      operationId: deleteCommunityPost
+      tags: [community]
+      summary: Delete your own community post (auth required)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /listen/{token}:
+    get:
+      operationId: getListenPost
+      tags: [community]
+      summary: Get a friends-only listen post by token (no auth required)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Listen post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPost"
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -408,3 +503,48 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Song"
+
+    CommunityPost:
+      type: object
+      required: [id, songId, userId, visibility, title, hasAudio, createdAt]
+      properties:
+        id:
+          type: integer
+        songId:
+          type: integer
+        userId:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+        visibility:
+          type: string
+          enum: [public, friends]
+        listenToken:
+          type: ["string", "null"]
+        title:
+          type: string
+        hasAudio:
+          type: boolean
+        duration:
+          type: ["number", "null"]
+        audioUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CommunityPostInput:
+      type: object
+      required: [songId, visibility]
+      properties:
+        songId:
+          type: integer
+        displayName:
+          type: string
+        note:
+          type: string
+        visibility:
+          type: string
+          enum: [public, friends]
