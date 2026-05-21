@@ -6,7 +6,10 @@
       }
     },
     "ios": {
-      "bundleIdentifier": "com.recordyou.app"
+      "bundleIdentifier": "com.recordyou.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     }
   }
 }

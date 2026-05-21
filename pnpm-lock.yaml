@@ -627,6 +627,9 @@ importers:
       expo-clipboard:
         specifier: ^55.0.13
         version: 55.0.13(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      expo-modules-autolinking:
+        specifier: ^55.0.23
+        version: 55.0.23(typescript@5.9.3)
       lucide-react-native:
         specifier: ^1.16.0
         version: 1.16.0(react-native-svg@15.12.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -4137,6 +4140,10 @@ packages:
 
   expo-modules-autolinking@3.0.25:
     resolution: {integrity: sha512-YmHWctJlwvOuLZccg3cOXvSiXVJrPMKl7g2YR0YHWoGL9v2RvcmgaPJWPSLVW+voNEgEPsbo5UmUrAqbnYcBeg==}
+    hasBin: true
+
+  expo-modules-autolinking@55.0.23:
+    resolution: {integrity: sha512-Ds7OFOT5Vsr+HFfKS61oeecnOd7mckYMGO/on/YpznQIk4r8q3+SsvxzweQyFoAZXRklQ3KAzVGPKCUe3E/J1Q==}
     hasBin: true
 
   expo-modules-core@3.0.30:
@@ -10890,6 +10897,16 @@ snapshots:
       commander: 7.2.0
       require-from-string: 2.0.2
       resolve-from: 5.0.0
+
+  expo-modules-autolinking@55.0.23(typescript@5.9.3):
+    dependencies:
+      '@expo/require-utils': 55.0.5(typescript@5.9.3)
+      '@expo/spawn-async': 1.7.2
+      chalk: 4.1.2
+      commander: 7.2.0
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
 
   expo-modules-core@3.0.30(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
     dependencies:

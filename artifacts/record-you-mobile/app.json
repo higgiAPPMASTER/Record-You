@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.recordyou.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Record You needs microphone access to record your music."
+        "NSMicrophoneUsageDescription": "Record You needs microphone access to record your music.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
