@@ -71,6 +71,39 @@ export interface CommentInput {
   body: string;
 }
 
+export interface Take {
+  id: number;
+  songId: number;
+  author: string;
+  audioUrl: string;
+  /** @nullable */
+  duration?: number | null;
+  /** @nullable */
+  waveformData?: number[] | null;
+  offsetMs: number;
+  volume: number;
+  pan: number;
+  createdAt: string;
+}
+
+export interface TakeUpdate {
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  volume?: number;
+  /**
+     * @minimum -1
+     * @maximum 1
+     */
+  pan?: number;
+  /**
+     * @minimum -5000
+     * @maximum 5000
+     */
+  offsetMs?: number;
+}
+
 export interface SongStats {
   totalSongs: number;
   /** Total duration of all songs in seconds */

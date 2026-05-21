@@ -165,3 +165,90 @@ export const CreateCommentBody = zod.object({
 })
 
 
+/**
+ * @summary List collaborator takes on a song
+ */
+export const ListTakesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListTakesResponseItem = zod.object({
+  "id": zod.number(),
+  "songId": zod.number(),
+  "author": zod.string(),
+  "audioUrl": zod.string(),
+  "duration": zod.number().nullish(),
+  "waveformData": zod.array(zod.number()).nullish(),
+  "offsetMs": zod.number(),
+  "volume": zod.number(),
+  "pan": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+export const ListTakesResponse = zod.array(ListTakesResponseItem)
+
+
+/**
+ * @summary Upload a collaborator take (multipart audio, handled by multer)
+ */
+export const UploadTakeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Adjust mix settings for a take
+ */
+export const UpdateTakeParams = zod.object({
+  "songId": zod.coerce.number(),
+  "takeId": zod.coerce.number()
+})
+
+export const updateTakeBodyVolumeMin = 0;
+export const updateTakeBodyVolumeMax = 2;
+
+export const updateTakeBodyPanMin = -1;
+export const updateTakeBodyPanMax = 1;
+
+export const updateTakeBodyOffsetMsMin = -5000;
+export const updateTakeBodyOffsetMsMax = 5000;
+
+
+
+export const UpdateTakeBody = zod.object({
+  "volume": zod.number().min(updateTakeBodyVolumeMin).max(updateTakeBodyVolumeMax).optional(),
+  "pan": zod.number().min(updateTakeBodyPanMin).max(updateTakeBodyPanMax).optional(),
+  "offsetMs": zod.number().min(updateTakeBodyOffsetMsMin).max(updateTakeBodyOffsetMsMax).optional()
+})
+
+export const UpdateTakeResponse = zod.object({
+  "id": zod.number(),
+  "songId": zod.number(),
+  "author": zod.string(),
+  "audioUrl": zod.string(),
+  "duration": zod.number().nullish(),
+  "waveformData": zod.array(zod.number()).nullish(),
+  "offsetMs": zod.number(),
+  "volume": zod.number(),
+  "pan": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a take
+ */
+export const DeleteTakeParams = zod.object({
+  "songId": zod.coerce.number(),
+  "takeId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Stream a take's audio
+ */
+export const StreamTakeAudioParams = zod.object({
+  "songId": zod.coerce.number(),
+  "takeId": zod.coerce.number()
+})
+
+

@@ -26,7 +26,9 @@ import type {
   Song,
   SongInput,
   SongStats,
-  SongUpdate
+  SongUpdate,
+  Take,
+  TakeUpdate
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -711,4 +713,379 @@ export const useCreateComment = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreateCommentMutationOptions(options));
     }
+
+export const getListTakesUrl = (id: number,) => {
+
+
+
+
+  return `/api/songs/${id}/takes`
+}
+
+/**
+ * @summary List collaborator takes on a song
+ */
+export const listTakes = async (id: number, options?: RequestInit): Promise<Take[]> => {
+
+  return customFetch<Take[]>(getListTakesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTakesQueryKey = (id: number,) => {
+    return [
+    `/api/songs/${id}/takes`
+    ] as const;
+    }
+
+
+export const getListTakesQueryOptions = <TData = Awaited<ReturnType<typeof listTakes>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTakesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTakes>>> = ({ signal }) => listTakes(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTakes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTakesQueryResult = NonNullable<Awaited<ReturnType<typeof listTakes>>>
+export type ListTakesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List collaborator takes on a song
+ */
+
+export function useListTakes<TData = Awaited<ReturnType<typeof listTakes>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTakesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUploadTakeUrl = (id: number,) => {
+
+
+
+
+  return `/api/songs/${id}/takes`
+}
+
+/**
+ * @summary Upload a collaborator take (multipart audio, handled by multer)
+ */
+export const uploadTake = async (id: number, options?: RequestInit): Promise<Take> => {
+
+  return customFetch<Take>(getUploadTakeUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getUploadTakeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadTake>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadTake>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['uploadTake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadTake>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  uploadTake(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadTakeMutationResult = NonNullable<Awaited<ReturnType<typeof uploadTake>>>
+
+    export type UploadTakeMutationError = ErrorType<void>
+
+    /**
+ * @summary Upload a collaborator take (multipart audio, handled by multer)
+ */
+export const useUploadTake = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadTake>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadTake>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUploadTakeMutationOptions(options));
+    }
+
+export const getUpdateTakeUrl = (songId: number,
+    takeId: number,) => {
+
+
+
+
+  return `/api/songs/${songId}/takes/${takeId}`
+}
+
+/**
+ * @summary Adjust mix settings for a take
+ */
+export const updateTake = async (songId: number,
+    takeId: number,
+    takeUpdate: TakeUpdate, options?: RequestInit): Promise<Take> => {
+
+  return customFetch<Take>(getUpdateTakeUrl(songId,takeId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      takeUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateTakeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTake>>, TError,{songId: number;takeId: number;data: BodyType<TakeUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTake>>, TError,{songId: number;takeId: number;data: BodyType<TakeUpdate>}, TContext> => {
+
+const mutationKey = ['updateTake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTake>>, {songId: number;takeId: number;data: BodyType<TakeUpdate>}> = (props) => {
+          const {songId,takeId,data} = props ?? {};
+
+          return  updateTake(songId,takeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTakeMutationResult = NonNullable<Awaited<ReturnType<typeof updateTake>>>
+    export type UpdateTakeMutationBody = BodyType<TakeUpdate>
+    export type UpdateTakeMutationError = ErrorType<void>
+
+    /**
+ * @summary Adjust mix settings for a take
+ */
+export const useUpdateTake = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTake>>, TError,{songId: number;takeId: number;data: BodyType<TakeUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTake>>,
+        TError,
+        {songId: number;takeId: number;data: BodyType<TakeUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateTakeMutationOptions(options));
+    }
+
+export const getDeleteTakeUrl = (songId: number,
+    takeId: number,) => {
+
+
+
+
+  return `/api/songs/${songId}/takes/${takeId}`
+}
+
+/**
+ * @summary Remove a take
+ */
+export const deleteTake = async (songId: number,
+    takeId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTakeUrl(songId,takeId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteTakeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTake>>, TError,{songId: number;takeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTake>>, TError,{songId: number;takeId: number}, TContext> => {
+
+const mutationKey = ['deleteTake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTake>>, {songId: number;takeId: number}> = (props) => {
+          const {songId,takeId} = props ?? {};
+
+          return  deleteTake(songId,takeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTakeMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTake>>>
+
+    export type DeleteTakeMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a take
+ */
+export const useDeleteTake = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTake>>, TError,{songId: number;takeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTake>>,
+        TError,
+        {songId: number;takeId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTakeMutationOptions(options));
+    }
+
+export const getStreamTakeAudioUrl = (songId: number,
+    takeId: number,) => {
+
+
+
+
+  return `/api/songs/${songId}/takes/${takeId}/audio`
+}
+
+/**
+ * @summary Stream a take's audio
+ */
+export const streamTakeAudio = async (songId: number,
+    takeId: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getStreamTakeAudioUrl(songId,takeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStreamTakeAudioQueryKey = (songId: number,
+    takeId: number,) => {
+    return [
+    `/api/songs/${songId}/takes/${takeId}/audio`
+    ] as const;
+    }
+
+
+export const getStreamTakeAudioQueryOptions = <TData = Awaited<ReturnType<typeof streamTakeAudio>>, TError = ErrorType<unknown>>(songId: number,
+    takeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof streamTakeAudio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStreamTakeAudioQueryKey(songId,takeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof streamTakeAudio>>> = ({ signal }) => streamTakeAudio(songId,takeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(songId && takeId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof streamTakeAudio>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type StreamTakeAudioQueryResult = NonNullable<Awaited<ReturnType<typeof streamTakeAudio>>>
+export type StreamTakeAudioQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Stream a take's audio
+ */
+
+export function useStreamTakeAudio<TData = Awaited<ReturnType<typeof streamTakeAudio>>, TError = ErrorType<unknown>>(
+ songId: number,
+    takeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof streamTakeAudio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getStreamTakeAudioQueryOptions(songId,takeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 

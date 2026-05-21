@@ -14,6 +14,8 @@ tags:
     description: Song management
   - name: comments
     description: Feedback comments on shared songs
+  - name: takes
+    description: Collaborator audio layers added to a song
 paths:
   /healthz:
     get:
@@ -181,6 +183,123 @@ paths:
         "404":
           description: Song not found
 
+  /songs/{id}/takes:
+    get:
+      operationId: listTakes
+      tags: [takes]
+      summary: List collaborator takes on a song
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of takes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Take"
+    post:
+      operationId: uploadTake
+      tags: [takes]
+      summary: Upload a collaborator take (multipart audio, handled by multer)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Take"
+        "404":
+          description: Song not found
+
+  /songs/{songId}/takes/{takeId}:
+    patch:
+      operationId: updateTake
+      tags: [takes]
+      summary: Adjust mix settings for a take
+      parameters:
+        - name: songId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: takeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TakeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Take"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteTake
+      tags: [takes]
+      summary: Remove a take
+      parameters:
+        - name: songId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: takeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /songs/{songId}/takes/{takeId}/audio:
+    get:
+      operationId: streamTakeAudio
+      tags: [takes]
+      summary: Stream a take's audio
+      parameters:
+        - name: songId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: takeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audio stream
+          content:
+            audio/*:
+              schema:
+                type: string
+                format: binary
+
 components:
   schemas:
     HealthStatus:
@@ -274,6 +393,50 @@ components:
           type: string
           minLength: 1
           maxLength: 2000
+
+    Take:
+      type: object
+      required: [id, songId, author, audioUrl, offsetMs, volume, pan, createdAt]
+      properties:
+        id:
+          type: integer
+        songId:
+          type: integer
+        author:
+          type: string
+        audioUrl:
+          type: string
+        duration:
+          type: ["number", "null"]
+        waveformData:
+          type: ["array", "null"]
+          items:
+            type: number
+        offsetMs:
+          type: integer
+        volume:
+          type: number
+        pan:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    TakeUpdate:
+      type: object
+      properties:
+        volume:
+          type: number
+          minimum: 0
+          maximum: 2
+        pan:
+          type: number
+          minimum: -1
+          maximum: 1
+        offsetMs:
+          type: integer
+          minimum: -5000
+          maximum: 5000
 
     SongStats:
       type: object

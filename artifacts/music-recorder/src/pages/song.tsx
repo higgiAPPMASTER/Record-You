@@ -16,6 +16,7 @@ import {
   getLocalSong, updateLocalSong, deleteLocalSong, getLocalAudioUrl, getLocalBlob, formatBytes, type LocalSong,
 } from "@/lib/local-songs";
 import { CommentsPanel } from "@/components/comments-panel";
+import { TakesMixer } from "@/components/takes-mixer";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -303,6 +304,16 @@ export default function SongDetail() {
               </div>
             )}
           </Card>
+
+          {song.cloudId != null && (
+            <Card className="p-6 bg-card border-border">
+              <TakesMixer
+                songId={song.cloudId}
+                songTitle={song.title}
+                originalAudioUrl={`/api/songs/${song.cloudId}/audio`}
+              />
+            </Card>
+          )}
 
           {song.cloudId != null && (
             <Card className="p-6 bg-card border-border">
