@@ -7,6 +7,7 @@ import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { extractWaveformPeaks } from "@/lib/waveform";
 import { useMetronome } from "@/hooks/use-metronome";
 import { AudioVisualizer } from "@/components/audio-visualizer";
+import { InputLevelMeter } from "@/components/input-level-meter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -112,8 +113,12 @@ export default function Record() {
                 {formatTime(recordingTime)}
               </div>
 
-              <div className="w-full bg-background/50 rounded-xl p-6 mb-12 border border-border">
+              <div className="w-full bg-background/50 rounded-xl p-6 mb-6 border border-border">
                 <AudioVisualizer analyserNode={analyserNode} isRecording={isRecording && !isPaused} />
+              </div>
+
+              <div className="w-full mb-12">
+                <InputLevelMeter analyserNode={analyserNode} active={isRecording && !isPaused} />
               </div>
 
               <div className="flex items-center gap-6">
