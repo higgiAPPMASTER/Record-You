@@ -44,6 +44,56 @@ interface UseAudioMixerResult {
   reset: () => void;
 }
 
+// ── WAV encoder ─────────────────────────────────────────────────────────────
+// Encodes collected Float32 PCM chunks as a 16-bit stereo WAV Blob.
+// Works entirely in-browser with no external dependencies.
+function encodePCMasWAV(
+  left: Float32Array[],
+  right: Float32Array[],
+  sampleRate: number,
+): Blob {
+  const totalSamples = left.reduce((s, a) => s + a.length, 0);
+  if (totalSamples === 0) return new Blob([], { type: "audio/wav" });
+
+  const numChannels = 2;
+  const bytesPerSample = 2; // 16-bit
+  const dataSize = totalSamples * numChannels * bytesPerSample;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const v = new DataView(buf);
+
+  const str = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i));
+  };
+
+  str(0, "RIFF");
+  v.setUint32(4, 36 + dataSize, true);
+  str(8, "WAVE");
+  str(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); // PCM
+  v.setUint16(22, numChannels, true);
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  v.setUint16(32, numChannels * bytesPerSample, true);
+  v.setUint16(34, 16, true);
+  str(36, "data");
+  v.setUint32(40, dataSize, true);
+
+  let off = 44;
+  let li = 0, lci = 0, ri = 0, rci = 0;
+  for (let i = 0; i < totalSamples; i++) {
+    const l = Math.max(-1, Math.min(1, left[li][lci++]));
+    const r = Math.max(-1, Math.min(1, right[ri][rci++]));
+    v.setInt16(off, l < 0 ? l * 0x8000 : l * 0x7fff, true); off += 2;
+    v.setInt16(off, r < 0 ? r * 0x8000 : r * 0x7fff, true); off += 2;
+    if (lci >= left[li].length) { li++; lci = 0; }
+    if (rci >= right[ri].length) { ri++; rci = 0; }
+  }
+
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+// ── Hook ────────────────────────────────────────────────────────────────────
 export function useAudioMixer(): UseAudioMixerResult {
   const [state, setState] = useState<MixerState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +137,14 @@ export function useAudioMixer(): UseAudioMixerResult {
   const gain2Ref = useRef<GainNode | null>(null);
   const pan1Ref = useRef<StereoPannerNode | null>(null);
   const pan2Ref = useRef<StereoPannerNode | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // PCM capture (replaces MediaRecorder — works on iOS Safari)
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const silentGainRef = useRef<GainNode | null>(null);
+  const pcmLeftRef = useRef<Float32Array[]>([]);
+  const pcmRightRef = useRef<Float32Array[]>([]);
+  const sampleRateRef = useRef(44100);
+
   const timerRef = useRef<number | null>(null);
   const playTimeoutRef = useRef<number | null>(null);
   const fadeOutTimeoutRef = useRef<number | null>(null);
@@ -97,12 +154,12 @@ export function useAudioMixer(): UseAudioMixerResult {
 
   const effectiveGain1 = () => {
     if (t1MuteRef.current) return 0;
-    if (t2SoloRef.current) return 0; // track 2 is soloed → track 1 silent
+    if (t2SoloRef.current) return 0;
     return t1VolumeRef.current;
   };
   const effectiveGain2 = () => {
     if (t2MuteRef.current) return 0;
-    if (t1SoloRef.current) return 0; // track 1 is soloed → track 2 silent
+    if (t1SoloRef.current) return 0;
     return t2VolumeRef.current;
   };
 
@@ -148,73 +205,73 @@ export function useAudioMixer(): UseAudioMixerResult {
     if (el2Ref.current) el2Ref.current.currentTime = 0;
   }, []);
 
-  // --- Public setters (update both state + live ref + node) ---
+  // Tear down the PCM capture graph and return the collected blob
+  const finishCapture = useCallback((): Blob => {
+    const sp = scriptProcessorRef.current;
+    const sg = silentGainRef.current;
+    if (sp) {
+      sp.onaudioprocess = null;
+      try { sp.disconnect(); } catch {}
+      scriptProcessorRef.current = null;
+    }
+    if (sg) {
+      try { sg.disconnect(); } catch {}
+      silentGainRef.current = null;
+    }
+    const blob = encodePCMasWAV(pcmLeftRef.current, pcmRightRef.current, sampleRateRef.current);
+    pcmLeftRef.current = [];
+    pcmRightRef.current = [];
+    return blob;
+  }, []);
+
+  // --- Public setters ---
 
   const setTrack1Volume = useCallback((v: number) => {
-    t1VolumeRef.current = v;
-    setTrack1VolumeState(v);
-    applyGain1();
+    t1VolumeRef.current = v; setTrack1VolumeState(v); applyGain1();
   }, [applyGain1]);
 
   const setTrack2Volume = useCallback((v: number) => {
-    t2VolumeRef.current = v;
-    setTrack2VolumeState(v);
-    applyGain2();
+    t2VolumeRef.current = v; setTrack2VolumeState(v); applyGain2();
   }, [applyGain2]);
 
   const setTrack1Pan = useCallback((v: number) => {
-    t1PanRef.current = v;
-    setTrack1PanState(v);
-    applyPan1();
+    t1PanRef.current = v; setTrack1PanState(v); applyPan1();
   }, [applyPan1]);
 
   const setTrack2Pan = useCallback((v: number) => {
-    t2PanRef.current = v;
-    setTrack2PanState(v);
-    applyPan2();
+    t2PanRef.current = v; setTrack2PanState(v); applyPan2();
   }, [applyPan2]);
 
   const setTrack1Mute = useCallback((v: boolean) => {
-    t1MuteRef.current = v;
-    setTrack1MuteState(v);
-    applyGain1();
+    t1MuteRef.current = v; setTrack1MuteState(v); applyGain1();
   }, [applyGain1]);
 
   const setTrack2Mute = useCallback((v: boolean) => {
-    t2MuteRef.current = v;
-    setTrack2MuteState(v);
-    applyGain2();
+    t2MuteRef.current = v; setTrack2MuteState(v); applyGain2();
   }, [applyGain2]);
 
   const setTrack1Solo = useCallback((v: boolean) => {
     t1SoloRef.current = v;
     if (v) { t2SoloRef.current = false; setTrack2SoloState(false); }
-    setTrack1SoloState(v);
-    applyGain1();
-    applyGain2();
+    setTrack1SoloState(v); applyGain1(); applyGain2();
   }, [applyGain1, applyGain2]);
 
   const setTrack2Solo = useCallback((v: boolean) => {
     t2SoloRef.current = v;
     if (v) { t1SoloRef.current = false; setTrack1SoloState(false); }
-    setTrack2SoloState(v);
-    applyGain1();
-    applyGain2();
+    setTrack2SoloState(v); applyGain1(); applyGain2();
   }, [applyGain1, applyGain2]);
 
   const setFadeInDuration = useCallback((v: number) => {
-    fadeInRef.current = v;
-    setFadeInDurationState(v);
+    fadeInRef.current = v; setFadeInDurationState(v);
   }, []);
 
   const setFadeOutDuration = useCallback((v: number) => {
-    fadeOutRef.current = v;
-    setFadeOutDurationState(v);
+    fadeOutRef.current = v; setFadeOutDurationState(v);
   }, []);
 
   const setLoop = useCallback((v: boolean) => {
-    loopRef.current = v;
-    setLoopState(v);
+    loopRef.current = v; setLoopState(v);
   }, []);
 
   // --- Core operations ---
@@ -272,6 +329,7 @@ export function useAudioMixer(): UseAudioMixerResult {
       pan2Ref.current = pan2;
       gain1Ref.current = gain1;
       gain2Ref.current = gain2;
+      sampleRateRef.current = ctx.sampleRate;
 
       setMixDuration(dur);
       setState("ready");
@@ -293,7 +351,6 @@ export function useAudioMixer(): UseAudioMixerResult {
     el1.currentTime = 0;
     el2.currentTime = 0;
 
-    // Fade in
     const fi = fadeInRef.current;
     if (fi > 0) {
       gain1.gain.cancelScheduledValues(ctx.currentTime);
@@ -321,33 +378,22 @@ export function useAudioMixer(): UseAudioMixerResult {
     playTimeoutRef.current = window.setTimeout(() => {
       if (stateRef.current !== "playing") return;
       if (loopRef.current) {
-        // restart
         el1.currentTime = 0;
         el2.currentTime = 0;
         startTimeRef.current = Date.now();
+      } else if (fo > 0 && ctx && gain1 && gain2) {
+        gain1.gain.cancelScheduledValues(ctx.currentTime);
+        gain2.gain.cancelScheduledValues(ctx.currentTime);
+        gain1.gain.setValueAtTime(gain1.gain.value, ctx.currentTime);
+        gain2.gain.setValueAtTime(gain2.gain.value, ctx.currentTime);
+        gain1.gain.linearRampToValueAtTime(0, ctx.currentTime + fo);
+        gain2.gain.linearRampToValueAtTime(0, ctx.currentTime + fo);
+        fadeOutTimeoutRef.current = window.setTimeout(() => {
+          haltElements(); applyGain1(); applyGain2(); clearTimers();
+          setState("ready"); setElapsedTime(0);
+        }, fo * 1000 + 100);
       } else {
-        // fade out then stop
-        if (fo > 0 && ctx && gain1 && gain2) {
-          gain1.gain.cancelScheduledValues(ctx.currentTime);
-          gain2.gain.cancelScheduledValues(ctx.currentTime);
-          gain1.gain.setValueAtTime(gain1.gain.value, ctx.currentTime);
-          gain2.gain.setValueAtTime(gain2.gain.value, ctx.currentTime);
-          gain1.gain.linearRampToValueAtTime(0, ctx.currentTime + fo);
-          gain2.gain.linearRampToValueAtTime(0, ctx.currentTime + fo);
-          fadeOutTimeoutRef.current = window.setTimeout(() => {
-            haltElements();
-            applyGain1();
-            applyGain2();
-            clearTimers();
-            setState("ready");
-            setElapsedTime(0);
-          }, fo * 1000 + 100);
-        } else {
-          haltElements();
-          clearTimers();
-          setState("ready");
-          setElapsedTime(0);
-        }
+        haltElements(); clearTimers(); setState("ready"); setElapsedTime(0);
       }
     }, autoStopAt);
   }, [mixDuration, applyGain1, applyGain2, clearTimers, startElapsedTimer, haltElements]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -366,18 +412,11 @@ export function useAudioMixer(): UseAudioMixerResult {
       gain1.gain.linearRampToValueAtTime(0, ctx.currentTime + fo);
       gain2.gain.linearRampToValueAtTime(0, ctx.currentTime + fo);
       fadeOutTimeoutRef.current = window.setTimeout(() => {
-        haltElements();
-        applyGain1();
-        applyGain2();
-        clearTimers();
-        setState("ready");
-        setElapsedTime(0);
+        haltElements(); applyGain1(); applyGain2(); clearTimers();
+        setState("ready"); setElapsedTime(0);
       }, fo * 1000 + 100);
     } else {
-      haltElements();
-      clearTimers();
-      setState("ready");
-      setElapsedTime(0);
+      haltElements(); clearTimers(); setState("ready"); setElapsedTime(0);
     }
   }, [haltElements, applyGain1, applyGain2, clearTimers]);
 
@@ -393,21 +432,16 @@ export function useAudioMixer(): UseAudioMixerResult {
     clearTimers();
     setError(null);
 
-    // Resume the AudioContext first — MUST happen before any audio flows
+    // Wake the AudioContext — must happen before any audio graph activity
     try {
       if (ctx.state !== "running") await ctx.resume();
     } catch {
-      setError("Could not activate audio. Tap the screen first and try again.");
+      setError("Could not start audio. Tap anywhere on the page first, then try again.");
       setState("ready");
       return;
     }
 
-    // Route through a capture destination as well
-    const dest = ctx.createMediaStreamDestination();
-    gain1.connect(dest);
-    gain2.connect(dest);
-
-    // Apply fade in for recording too
+    // Apply fade-in gain envelope
     const fi = fadeInRef.current;
     if (fi > 0) {
       gain1.gain.cancelScheduledValues(ctx.currentTime);
@@ -421,76 +455,69 @@ export function useAudioMixer(): UseAudioMixerResult {
       applyGain2();
     }
 
-    const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-      ? "audio/webm;codecs=opus"
-      : MediaRecorder.isTypeSupported("audio/webm")
-      ? "audio/webm"
-      : MediaRecorder.isTypeSupported("audio/mp4")
-      ? "audio/mp4"
-      : "";
+    // ── PCM capture via ScriptProcessorNode ──────────────────────────────
+    // MediaRecorder + Web Audio streams is broken on iOS Safari.
+    // ScriptProcessorNode captures raw float PCM that we encode as WAV,
+    // which works on every browser including iOS.
+    const bufferSize = 4096;
+    const sp = ctx.createScriptProcessor(bufferSize, 2, 2);
+    // Route through a silent gain so onaudioprocess fires without doubling output
+    const silentGain = ctx.createGain();
+    silentGain.gain.value = 0;
 
-    let mr: MediaRecorder;
-    try {
-      mr = new MediaRecorder(dest.stream, mime ? { mimeType: mime } : undefined);
-    } catch {
-      gain1.disconnect(dest);
-      gain2.disconnect(dest);
-      setError("Your browser doesn't support audio recording. Try Chrome or Firefox.");
-      setState("ready");
-      return;
-    }
-    mediaRecorderRef.current = mr;
+    pcmLeftRef.current = [];
+    pcmRightRef.current = [];
 
-    const chunks: BlobPart[] = [];
-    mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    mr.onstop = () => {
-      try { gain1.disconnect(dest); } catch {}
-      try { gain2.disconnect(dest); } catch {}
-      const blob = new Blob(chunks, { type: mr.mimeType || mime || "audio/webm" });
-      setRecordedBlob(blob);
-      setState("done");
+    sp.onaudioprocess = (e) => {
+      const inp = e.inputBuffer;
+      const l = inp.getChannelData(0);
+      const r = inp.numberOfChannels > 1 ? inp.getChannelData(1) : inp.getChannelData(0);
+      pcmLeftRef.current.push(new Float32Array(l));
+      pcmRightRef.current.push(new Float32Array(r));
     };
 
-    try {
-      mr.start(100);
-    } catch {
-      gain1.disconnect(dest);
-      gain2.disconnect(dest);
-      setError("Recording could not start. Please try again.");
-      setState("ready");
-      return;
-    }
+    gain1.connect(sp);
+    gain2.connect(sp);
+    sp.connect(silentGain);
+    silentGain.connect(ctx.destination);
 
-    el1.currentTime = 0;
-    el2.currentTime = 0;
-    // These play() calls happen right after await ctx.resume() — still within user-gesture window
-    try {
-      await el1.play();
-      await el2.play();
-    } catch {
-      // Non-fatal: audio may still play on some browsers even if play() promise rejects
-    }
+    scriptProcessorRef.current = sp;
+    silentGainRef.current = silentGain;
 
+    // Show recording UI immediately
     setState("recording");
     setElapsedTime(0);
+
+    // Start playback (fire-and-forget — no await, keeps us in the user gesture window)
+    el1.currentTime = 0;
+    el2.currentTime = 0;
+    el1.play().catch(() => {});
+    el2.play().catch(() => {});
+
     startElapsedTimer();
 
+    // Auto-stop when the longer track ends
     playTimeoutRef.current = window.setTimeout(() => {
-      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+      haltElements();
       clearTimers();
+      const blob = finishCapture();
+      setRecordedBlob(blob);
+      setState("done");
     }, (mixDuration || 300) * 1000 + 500);
-  }, [mixDuration, applyGain1, applyGain2, haltElements, clearTimers, startElapsedTimer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mixDuration, applyGain1, applyGain2, haltElements, clearTimers, startElapsedTimer, finishCapture]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
     haltElements();
     clearTimers();
-  }, [haltElements, clearTimers]);
+    const blob = finishCapture();
+    setRecordedBlob(blob);
+    setState("done");
+  }, [haltElements, clearTimers, finishCapture]);
 
   const reset = useCallback(() => {
     haltElements();
     clearTimers();
-    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+    finishCapture(); // tear down any active sp
     if (ctxRef.current) { ctxRef.current.close(); ctxRef.current = null; }
     el1Ref.current = null;
     el2Ref.current = null;
@@ -498,13 +525,12 @@ export function useAudioMixer(): UseAudioMixerResult {
     pan2Ref.current = null;
     gain1Ref.current = null;
     gain2Ref.current = null;
-    mediaRecorderRef.current = null;
     setRecordedBlob(null);
     setElapsedTime(0);
     setMixDuration(0);
     setError(null);
     setState("idle");
-  }, [haltElements, clearTimers]);
+  }, [haltElements, clearTimers, finishCapture]);
 
   return {
     state, error, mixDuration, recordedBlob, elapsedTime,
