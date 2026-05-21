@@ -3,7 +3,7 @@ import { useListSongs } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Play, Square, Disc, Loader2, Check, Volume2,
-  SlidersHorizontal, Repeat, VolumeX, Zap,
+  SlidersHorizontal, Repeat, VolumeX, Zap, Download,
 } from "lucide-react";
 import { useAudioMixer } from "@/hooks/use-audio-mixer";
 import { Button } from "@/components/ui/button";
@@ -443,7 +443,7 @@ export default function Mixer() {
           {state === "done" && recordedBlob && (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-6 space-y-4">
               <h2 className="font-semibold text-lg">Save Your Mix</h2>
-              <p className="text-sm text-muted-foreground">Give your mix a name — it'll be added to your library as a new track.</p>
+              <p className="text-sm text-muted-foreground">Give your mix a name to add it to your library, or download it directly.</p>
               <div className="space-y-2">
                 <Label htmlFor="mix-title">Mix Title</Label>
                 <Input
@@ -454,12 +454,27 @@ export default function Mixer() {
                   onKeyDown={(e) => e.key === "Enter" && handleSaveMix()}
                 />
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <Button onClick={handleSaveMix} disabled={!mixTitle.trim() || isSaving} className="gap-2">
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   Save to Library
                 </Button>
-                <Button variant="outline" onClick={() => reset()} disabled={isSaving}>Record Again</Button>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    const ext = recordedBlob.type.includes("mp4") ? "m4a" : "webm";
+                    const url = URL.createObjectURL(recordedBlob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${mixTitle.trim() || "mix"}.${ext}`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 5000);
+                  }}
+                >
+                  <Download className="w-4 h-4" /> Download
+                </Button>
+                <Button variant="ghost" onClick={() => reset()} disabled={isSaving} className="ml-auto text-muted-foreground">Record Again</Button>
               </div>
             </div>
           )}

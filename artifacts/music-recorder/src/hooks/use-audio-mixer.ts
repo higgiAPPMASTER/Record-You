@@ -381,7 +381,7 @@ export function useAudioMixer(): UseAudioMixerResult {
     }
   }, [haltElements, applyGain1, applyGain2, clearTimers]);
 
-  const startRecording = useCallback(() => {
+  const startRecording = useCallback(async () => {
     const ctx = ctxRef.current;
     const el1 = el1Ref.current;
     const el2 = el2Ref.current;
@@ -391,6 +391,16 @@ export function useAudioMixer(): UseAudioMixerResult {
 
     haltElements();
     clearTimers();
+    setError(null);
+
+    // Resume the AudioContext first — MUST happen before any audio flows
+    try {
+      if (ctx.state !== "running") await ctx.resume();
+    } catch {
+      setError("Could not activate audio. Tap the screen first and try again.");
+      setState("ready");
+      return;
+    }
 
     // Route through a capture destination as well
     const dest = ctx.createMediaStreamDestination();
@@ -418,6 +428,7 @@ export function useAudioMixer(): UseAudioMixerResult {
       : MediaRecorder.isTypeSupported("audio/mp4")
       ? "audio/mp4"
       : "";
+
     let mr: MediaRecorder;
     try {
       mr = new MediaRecorder(dest.stream, mime ? { mimeType: mime } : undefined);
@@ -433,18 +444,32 @@ export function useAudioMixer(): UseAudioMixerResult {
     const chunks: BlobPart[] = [];
     mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
     mr.onstop = () => {
-      gain1.disconnect(dest);
-      gain2.disconnect(dest);
-      setRecordedBlob(new Blob(chunks, { type: mr.mimeType || "audio/webm" }));
+      try { gain1.disconnect(dest); } catch {}
+      try { gain2.disconnect(dest); } catch {}
+      const blob = new Blob(chunks, { type: mr.mimeType || mime || "audio/webm" });
+      setRecordedBlob(blob);
       setState("done");
     };
 
-    mr.start(100);
-    if (ctx.state === "suspended") ctx.resume();
+    try {
+      mr.start(100);
+    } catch {
+      gain1.disconnect(dest);
+      gain2.disconnect(dest);
+      setError("Recording could not start. Please try again.");
+      setState("ready");
+      return;
+    }
+
     el1.currentTime = 0;
     el2.currentTime = 0;
-    el1.play();
-    el2.play();
+    // These play() calls happen right after await ctx.resume() — still within user-gesture window
+    try {
+      await el1.play();
+      await el2.play();
+    } catch {
+      // Non-fatal: audio may still play on some browsers even if play() promise rejects
+    }
 
     setState("recording");
     setElapsedTime(0);
