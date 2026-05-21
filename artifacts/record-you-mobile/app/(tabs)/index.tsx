@@ -1,4 +1,6 @@
 import { Mic, Pause, Play, Trash2 } from "lucide-react-native";
+
+const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -69,7 +71,7 @@ export default function LibraryScreen() {
       const fullUrl =
         audioUrl.startsWith("http")
           ? audioUrl
-          : `https://${process.env.EXPO_PUBLIC_DOMAIN}${audioUrl}`;
+          : `https://${API_DOMAIN}${audioUrl}`;
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: fullUrl },

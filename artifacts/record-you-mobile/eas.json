@@ -9,10 +9,18 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bGVnaWJsZS1zcGFycm93LTUwLmNsZXJrLmFjY291bnRzLmRldiQ",
+        "EXPO_PUBLIC_DOMAIN": "music-studio--higg1111.replit.app"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bGVnaWJsZS1zcGFycm93LTUwLmNsZXJrLmFjY291bnRzLmRldiQ",
+        "EXPO_PUBLIC_DOMAIN": "music-studio--higg1111.replit.app"
+      }
     }
   },
   "submit": {

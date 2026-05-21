@@ -1,6 +1,7 @@
 import { Mic, Pause, Play, RotateCcw, Save, Square } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
+import { useAuth } from "@clerk/expo";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Animated, { useSharedValue, withRepeat, withTiming, useAnimatedStyle, Easing } from "react-native-reanimated";
 import {
@@ -32,11 +33,14 @@ function formatTime(s: number): string {
   return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
+const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
+
 export default function StudioScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const createSong = useCreateSong();
+  const { getToken } = useAuth();
 
   const [state, setState] = useState<RecordingState>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -172,20 +176,21 @@ export default function StudioScreen() {
       });
 
       const formData = new FormData();
-      const filename = "recording.m4a";
-      const mimeType = "audio/m4a";
-
       formData.append("audio", {
         uri: recordingUriRef.current,
-        name: filename,
-        type: mimeType,
+        name: "recording.m4a",
+        type: "audio/m4a",
       } as any);
       formData.append("duration", elapsed.toString());
 
-      const domain = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
+      const token = await getToken();
       const uploadRes = await fetch(
-        `https://${domain}/api/songs/${song.id}/audio`,
-        { method: "POST", body: formData },
+        `https://${API_DOMAIN}/api/songs/${song.id}/audio`,
+        {
+          method: "POST",
+          body: formData,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        },
       );
 
       if (!uploadRes.ok) throw new Error("Upload failed");
