@@ -193,7 +193,10 @@ export default function StudioScreen() {
         },
       );
 
-      if (!uploadRes.ok) throw new Error("Upload failed");
+      if (!uploadRes.ok) {
+        const body = await uploadRes.text().catch(() => "");
+        throw new Error(`Upload ${uploadRes.status}: ${body.slice(0, 200) || uploadRes.statusText}`);
+      }
 
       queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
 
@@ -201,8 +204,9 @@ export default function StudioScreen() {
       setTimeout(() => setSavedMsg(false), 2500);
       handleDiscard();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      Alert.alert("Save failed", "Something went wrong. Please try again.");
+    } catch (err: any) {
+      const msg = err?.message || err?.toString?.() || "Unknown error";
+      Alert.alert("Save failed", msg);
     } finally {
       setIsSaving(false);
     }
