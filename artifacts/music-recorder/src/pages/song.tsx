@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import {
   getLocalSong, updateLocalSong, deleteLocalSong, getLocalAudioUrl, getLocalBlob, formatBytes, type LocalSong,
 } from "@/lib/local-songs";
+import { CommentsPanel } from "@/components/comments-panel";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -302,6 +303,12 @@ export default function SongDetail() {
               </div>
             )}
           </Card>
+
+          {song.cloudId != null && (
+            <Card className="p-6 bg-card border-border">
+              <CommentsPanel songId={song.cloudId} allowPost={false} title="Feedback from listeners" />
+            </Card>
+          )}
 
           <Card className="p-6 bg-card border-border">
             <div className="flex items-center justify-between mb-4">

@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: songs
     description: Song management
+  - name: comments
+    description: Feedback comments on shared songs
 paths:
   /healthz:
     get:
@@ -133,6 +135,52 @@ paths:
         "404":
           description: Not found
 
+  /songs/{id}/comments:
+    get:
+      operationId: listComments
+      tags: [comments]
+      summary: List comments on a song
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+    post:
+      operationId: createComment
+      tags: [comments]
+      summary: Post a comment on a song
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "404":
+          description: Song not found
+
 components:
   schemas:
     HealthStatus:
@@ -197,6 +245,35 @@ components:
           type: string
         tags:
           type: string
+
+    Comment:
+      type: object
+      required: [id, songId, author, body, createdAt]
+      properties:
+        id:
+          type: integer
+        songId:
+          type: integer
+        author:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CommentInput:
+      type: object
+      required: [author, body]
+      properties:
+        author:
+          type: string
+          minLength: 1
+          maxLength: 60
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
 
     SongStats:
       type: object

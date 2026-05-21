@@ -50,6 +50,27 @@ export interface SongUpdate {
   tags?: string;
 }
 
+export interface Comment {
+  id: number;
+  songId: number;
+  author: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface CommentInput {
+  /**
+     * @minLength 1
+     * @maxLength 60
+     */
+  author: string;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  body: string;
+}
+
 export interface SongStats {
   totalSongs: number;
   /** Total duration of all songs in seconds */

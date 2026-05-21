@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CommentsPanel } from "@/components/comments-panel";
 
 export default function Shared() {
   const [, params] = useRoute("/shared/:id");
@@ -141,6 +142,10 @@ export default function Shared() {
             <div className="text-muted-foreground whitespace-pre-wrap">{song.notes}</div>
           </div>
         )}
+      </Card>
+
+      <Card className="p-6 bg-card border-border mt-6">
+        <CommentsPanel songId={id} title="Leave feedback for the artist" />
       </Card>
     </div>
   );

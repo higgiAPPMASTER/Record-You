@@ -129,3 +129,39 @@ export const DeleteSongParams = zod.object({
 })
 
 
+/**
+ * @summary List comments on a song
+ */
+export const ListCommentsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListCommentsResponseItem = zod.object({
+  "id": zod.number(),
+  "songId": zod.number(),
+  "author": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCommentsResponse = zod.array(ListCommentsResponseItem)
+
+
+/**
+ * @summary Post a comment on a song
+ */
+export const CreateCommentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createCommentBodyAuthorMax = 60;
+
+export const createCommentBodyBodyMax = 2000;
+
+
+
+export const CreateCommentBody = zod.object({
+  "author": zod.string().min(1).max(createCommentBodyAuthorMax),
+  "body": zod.string().min(1).max(createCommentBodyBodyMax)
+})
+
+

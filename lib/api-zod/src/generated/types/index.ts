@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './comment';
+export * from './commentInput';
 export * from './healthStatus';
 export * from './song';
 export * from './songInput';
