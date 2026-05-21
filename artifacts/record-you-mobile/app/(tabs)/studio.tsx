@@ -33,7 +33,7 @@ function formatTime(s: number): string {
   return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
-const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
+const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higgi1111.replit.app";
 
 export default function StudioScreen() {
   const colors = useColors();

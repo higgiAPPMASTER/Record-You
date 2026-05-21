@@ -1,6 +1,6 @@
 import { Mic, Pause, Play, Trash2 } from "lucide-react-native";
 
-const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
+const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higgi1111.replit.app";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";

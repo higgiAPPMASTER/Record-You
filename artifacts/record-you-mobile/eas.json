@@ -12,14 +12,14 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bGVnaWJsZS1zcGFycm93LTUwLmNsZXJrLmFjY291bnRzLmRldiQ",
-        "EXPO_PUBLIC_DOMAIN": "music-studio--higg1111.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "music-studio--higgi1111.replit.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bGVnaWJsZS1zcGFycm93LTUwLmNsZXJrLmFjY291bnRzLmRldiQ",
-        "EXPO_PUBLIC_DOMAIN": "music-studio--higg1111.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "music-studio--higgi1111.replit.app"
       }
     }
   },
