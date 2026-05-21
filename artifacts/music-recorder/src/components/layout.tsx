@@ -50,22 +50,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <nav className="flex flex-col items-center gap-1 flex-1">
             {navItems.map(({ href, label, Icon }) => {
               const active = location === href;
+              const showBadge = href === "/sessions" && (stats?.recentCollabs ?? 0) > 0;
               return (
                 <Tooltip key={href}>
                   <TooltipTrigger asChild>
                     <Link
                       href={href}
-                      className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+                      className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
                         active
                           ? "bg-primary/15 text-primary"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
                     >
                       <Icon className="w-5 h-5" />
+                      {showBadge && (
+                        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary ring-2 ring-background" />
+                      )}
                     </Link>
                   </TooltipTrigger>
                   <TooltipContent side="right" sideOffset={8}>
                     {label}
+                    {showBadge && ` · ${stats!.recentCollabs} new collab${stats!.recentCollabs !== 1 ? "s" : ""}`}
                   </TooltipContent>
                 </Tooltip>
               );

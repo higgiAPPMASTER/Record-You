@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { eq, desc, sum, count } from "drizzle-orm";
+import { eq, desc, sum, count, and, gte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db, songsTable, collaborationsTable } from "@workspace/db";
 import {
@@ -93,11 +93,19 @@ router.get("/songs/stats", async (req, res) => {
       .orderBy(desc(songsTable.createdAt))
       .limit(5);
 
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const [collabStats] = await db
+      .select({ recentCollabs: count() })
+      .from(collaborationsTable)
+      .innerJoin(songsTable, eq(collaborationsTable.songId, songsTable.id))
+      .where(gte(collaborationsTable.createdAt, sevenDaysAgo));
+
     res.json({
       totalSongs: stats.totalSongs ?? 0,
       totalDuration: Number(stats.totalDuration ?? 0),
       songsWithAudio: stats.songsWithAudio ?? 0,
       recentSongs: recentSongs.map((s) => formatSong(s)),
+      recentCollabs: Number(collabStats?.recentCollabs ?? 0),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get song stats");

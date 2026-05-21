@@ -72,7 +72,8 @@ export const GetSongStatsResponse = zod.object({
   "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}))
+})),
+  "recentCollabs": zod.number().describe('Collaboration tracks submitted to your songs in the last 7 days')
 })
 
 

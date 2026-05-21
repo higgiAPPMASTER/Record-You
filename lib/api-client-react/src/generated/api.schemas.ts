@@ -118,6 +118,8 @@ export interface SongStats {
   totalDuration: number;
   songsWithAudio: number;
   recentSongs: Song[];
+  /** Collaboration tracks submitted to your songs in the last 7 days */
+  recentCollabs: number;
 }
 
 export type CommunityPostVisibility = typeof CommunityPostVisibility[keyof typeof CommunityPostVisibility];

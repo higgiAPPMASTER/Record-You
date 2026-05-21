@@ -490,7 +490,7 @@ components:
 
     SongStats:
       type: object
-      required: [totalSongs, totalDuration, songsWithAudio, recentSongs]
+      required: [totalSongs, totalDuration, songsWithAudio, recentSongs, recentCollabs]
       properties:
         totalSongs:
           type: integer
@@ -503,6 +503,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Song"
+        recentCollabs:
+          type: integer
+          description: Collaboration tracks submitted to your songs in the last 7 days
 
     CommunityPost:
       type: object

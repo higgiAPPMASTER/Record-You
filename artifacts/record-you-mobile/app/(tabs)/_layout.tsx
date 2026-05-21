@@ -4,7 +4,7 @@ import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Globe, LayoutGrid, List, Mic, Music2 } from "lucide-react-native";
+import { Globe, LayoutGrid, List, Mic, Music2, Users } from "lucide-react-native";
 import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,6 +26,10 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="sessions">
         <Icon sf={{ default: "person.2.wave.2", selected: "person.2.wave.2.fill" }} />
         <Label>Sessions</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="community">
+        <Icon sf={{ default: "person.3", selected: "person.3.fill" }} />
+        <Label>Community</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="tuner">
         <Icon sf={{ default: "tuningfork", selected: "tuningfork" }} />
@@ -110,6 +114,18 @@ function ClassicTabLayout() {
               <SymbolView name="person.2.wave.2" tintColor={color} size={24} />
             ) : (
               <Globe size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: "Community",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="person.3" tintColor={color} size={24} />
+            ) : (
+              <Users size={22} color={color} />
             ),
         }}
       />
