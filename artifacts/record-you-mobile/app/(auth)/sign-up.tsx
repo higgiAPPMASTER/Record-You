@@ -23,7 +23,7 @@ const MUTED = "#888888";
 const WHITE = "#f8f8f8";
 
 export default function SignUpScreen() {
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { signUp, fetchStatus } = useSignUp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -32,37 +32,39 @@ export default function SignUpScreen() {
   const [code, setCode] = useState("");
   const [pendingVerification, setPendingVerification] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+
+  const loading = fetchStatus === "fetching";
 
   const handleSubmit = async () => {
-    if (!isLoaded) return;
     setError("");
-    setLoading(true);
     try {
-      await signUp.create({ emailAddress: email, password });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      const { error: signUpError } = await signUp.password({
+        emailAddress: email,
+        password,
+      });
+      if (signUpError) {
+        setError(signUpError.message ?? "Sign up failed. Please try again.");
+        return;
+      }
       setPendingVerification(true);
     } catch (err: any) {
       setError(err?.errors?.[0]?.message ?? "Sign up failed. Please try again.");
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleVerify = async () => {
-    if (!isLoaded) return;
     setError("");
-    setLoading(true);
     try {
-      const result = await signUp.attemptEmailAddressVerification({ code });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.replace("/(tabs)");
+      const { error: verifyError } = await signUp.verifications.verifyEmailCode({ code });
+      if (verifyError) {
+        setError(verifyError.message ?? "Invalid code. Please try again.");
+        return;
       }
+      await signUp.finalize({
+        navigate: () => router.replace("/(tabs)"),
+      });
     } catch (err: any) {
       setError(err?.errors?.[0]?.message ?? "Invalid code. Please try again.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -98,9 +100,6 @@ export default function SignUpScreen() {
             ) : (
               <Text style={styles.btnText}>Verify</Text>
             )}
-          </Pressable>
-          <Pressable onPress={() => signUp?.prepareEmailAddressVerification({ strategy: "email_code" })}>
-            <Text style={[styles.link, { textAlign: "center" }]}>Resend code</Text>
           </Pressable>
         </View>
       </View>

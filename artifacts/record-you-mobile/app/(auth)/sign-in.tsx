@@ -23,32 +23,32 @@ const MUTED = "#888888";
 const WHITE = "#f8f8f8";
 
 export default function SignInScreen() {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  const { signIn, fetchStatus } = useSignIn();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+
+  const loading = fetchStatus === "fetching";
 
   const handleSubmit = async () => {
-    if (!isLoaded) return;
     setError("");
-    setLoading(true);
     try {
-      const result = await signIn.create({
+      const { error: signInError } = await signIn.password({
         identifier: email,
         password,
       });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.replace("/(tabs)");
+      if (signInError) {
+        setError(signInError.message ?? "Sign in failed. Check your email and password.");
+        return;
       }
+      await signIn.finalize({
+        navigate: () => router.replace("/(tabs)"),
+      });
     } catch (err: any) {
       setError(err?.errors?.[0]?.message ?? "Sign in failed. Check your email and password.");
-    } finally {
-      setLoading(false);
     }
   };
 

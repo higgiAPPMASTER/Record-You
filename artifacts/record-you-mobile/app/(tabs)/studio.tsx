@@ -1,7 +1,8 @@
 import { Mic, Pause, Play, RotateCcw, Save, Square } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import Animated, { useSharedValue, withRepeat, withTiming, useAnimatedStyle, Easing } from "react-native-reanimated";
 import {
   ActivityIndicator,
   Alert,
@@ -39,6 +40,12 @@ export default function StudioScreen() {
 
   const [state, setState] = useState<RecordingState>("idle");
   const [elapsed, setElapsed] = useState(0);
+  const pulseAnim = useSharedValue(1);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulseAnim.value,
+    transform: [{ scale: pulseAnim.value }],
+  }));
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [notes, setNotes] = useState("");
@@ -48,6 +55,18 @@ export default function StudioScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingUriRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (state === "recording") {
+      pulseAnim.value = withRepeat(
+        withTiming(0.4, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    } else {
+      pulseAnim.value = withTiming(1, { duration: 200 });
+    }
+  }, [state]);
 
   useEffect(() => {
     return () => {
@@ -351,16 +370,29 @@ export default function StudioScreen() {
         )}
 
         <View style={styles.timerBox}>
+          {state === "recording" && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Animated.View
+                style={[
+                  { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.destructive },
+                  pulseStyle,
+                ]}
+              />
+              <Text style={[styles.statusText, { color: colors.destructive, marginTop: 0 }]}>
+                RECORDING
+              </Text>
+            </View>
+          )}
           <Text style={styles.timer}>{formatTime(elapsed)}</Text>
-          <Text style={styles.statusText}>
-            {state === "idle"
-              ? "Ready to record"
-              : state === "recording"
-              ? "Recording..."
-              : state === "paused"
-              ? "Paused"
-              : "Recording done"}
-          </Text>
+          {state !== "recording" && (
+            <Text style={styles.statusText}>
+              {state === "idle"
+                ? "Ready to record"
+                : state === "paused"
+                ? "Paused"
+                : "Recording done"}
+            </Text>
+          )}
         </View>
 
         <View style={styles.controlRow}>

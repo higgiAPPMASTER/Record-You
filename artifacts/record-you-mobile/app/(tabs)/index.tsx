@@ -231,8 +231,31 @@ export default function LibraryScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Library</Text>
-        <Text style={styles.headerSub}>Your recordings</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View>
+            <Text style={styles.headerTitle}>Library</Text>
+            <Text style={styles.headerSub}>
+              {songs.length} track{songs.length !== 1 ? "s" : ""}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => router.push("/studio")}
+            style={{
+              backgroundColor: colors.primary,
+              borderRadius: 20,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <Mic size={14} color="#000" />
+            <Text style={{ color: "#000", fontWeight: "700", fontSize: 13, fontFamily: "Inter_700Bold" }}>
+              New Recording
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {songs.length === 0 ? (

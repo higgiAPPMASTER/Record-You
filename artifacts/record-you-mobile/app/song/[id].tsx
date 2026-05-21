@@ -56,6 +56,7 @@ export default function SongDetailScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
 
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -104,6 +105,7 @@ export default function SongDetailScreen() {
       setIsPlaying(true);
       setIsLoadingAudio(false);
 
+      await sound.setRateAsync(playbackSpeed, true);
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded) {
           setCurrentTime(status.positionMillis / 1000);
@@ -138,6 +140,14 @@ export default function SongDetailScreen() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSpeedChange = async (speed: number) => {
+    setPlaybackSpeed(speed);
+    if (soundRef.current) {
+      await soundRef.current.setRateAsync(speed, true);
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleDelete = () => {
@@ -237,6 +247,32 @@ export default function SongDetailScreen() {
       fontSize: 13,
       color: colors.mutedForeground,
       fontFamily: "Inter_400Regular",
+    },
+    speedRow: {
+      flexDirection: "row" as const,
+      justifyContent: "center" as const,
+      gap: 8,
+      marginTop: 14,
+    },
+    speedBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    speedBtnActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    speedBtnText: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      fontFamily: "Inter_600SemiBold",
+      fontWeight: "600" as const,
+    },
+    speedBtnTextActive: {
+      color: "#000",
     },
     card: {
       backgroundColor: colors.card,
@@ -342,6 +378,19 @@ export default function SongDetailScreen() {
                 <Text style={[styles.timeText, { textAlign: "right" as const }]}>
                   {formatDuration(duration)}
                 </Text>
+              </View>
+              <View style={styles.speedRow}>
+                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+                  <Pressable
+                    key={s}
+                    style={[styles.speedBtn, playbackSpeed === s && styles.speedBtnActive]}
+                    onPress={() => handleSpeedChange(s)}
+                  >
+                    <Text style={[styles.speedBtnText, playbackSpeed === s && styles.speedBtnTextActive]}>
+                      {s}×
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
             </>
           ) : (
