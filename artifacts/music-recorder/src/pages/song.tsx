@@ -69,9 +69,16 @@ export default function SongDetail() {
   }, [audioUrl]);
 
   const togglePlay = () => {
-    if (!audioRef.current || !audioUrl) return;
-    if (isPlaying) audioRef.current.pause();
-    else audioRef.current.play().catch(() => setIsPlaying(false));
+    const el = audioRef.current;
+    if (!el || !audioUrl) return;
+    if (isPlaying) {
+      el.pause();
+    } else {
+      el.play().catch(() => {
+        setIsPlaying(false);
+        toast({ title: "Playback failed", description: "Try tapping play again.", variant: "destructive" });
+      });
+    }
   };
 
   const handleTimeUpdate = () => {
@@ -244,6 +251,7 @@ export default function SongDetail() {
                 <audio
                   ref={audioRef}
                   src={audioUrl}
+                  preload="auto"
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
                   onEnded={() => { setIsPlaying(false); setCurrentTime(0); }}

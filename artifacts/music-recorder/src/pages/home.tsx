@@ -72,25 +72,42 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const currentUrlRef = useRef<string | null>(null);
+  // Pre-loaded blob URLs keyed by local song id — so togglePlay is synchronous (no await in click handler)
+  const localUrlMapRef = useRef<Record<string, string>>({});
 
-  const reload = useCallback(() => {
-    setLocalSongs(listLocalSongs());
+  const reload = useCallback(async () => {
+    const songs = listLocalSongs();
+    setLocalSongs(songs);
     setIsLocalLoading(false);
+    // Pre-load blob URLs so play() can fire synchronously from a tap
+    const existing = localUrlMapRef.current;
+    const ids = new Set(songs.map((s) => s.id));
+    // Revoke URLs for songs that no longer exist
+    for (const id of Object.keys(existing)) {
+      if (!ids.has(id)) {
+        URL.revokeObjectURL(existing[id]);
+        delete existing[id];
+      }
+    }
+    // Load any new songs
+    for (const s of songs) {
+      if (!existing[s.id]) {
+        const blob = await import("@/lib/local-songs").then((m) => m.getLocalBlob(s.id));
+        if (blob) existing[s.id] = URL.createObjectURL(blob);
+      }
+    }
   }, []);
 
   useEffect(() => {
     reload();
     const onFocus = () => reload();
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [reload]);
-
-  useEffect(() => {
     return () => {
-      if (currentUrlRef.current) URL.revokeObjectURL(currentUrlRef.current);
+      window.removeEventListener("focus", onFocus);
+      // Revoke all pre-loaded URLs on unmount
+      for (const url of Object.values(localUrlMapRef.current)) URL.revokeObjectURL(url);
     };
-  }, []);
+  }, [reload]);
 
   const isLoading = isLocalLoading || isCloudLoading;
 
@@ -143,30 +160,26 @@ export default function Home() {
     });
   }, [songs, search, activeTag]);
 
-  const togglePlay = async (song: UnifiedSong) => {
+  const togglePlay = (song: UnifiedSong) => {
     if (playingKey === song.key) {
       audioRef.current?.pause();
       setPlayingKey(null);
       return;
     }
-    let url: string | null = null;
-    if (song.source === "local") {
-      url = await getLocalAudioUrl(String(song.id));
-    } else {
-      url = song.audioUrl;
-    }
+    // Synchronous — pre-loaded URLs mean no async gap between tap and play()
+    const url = song.source === "local"
+      ? (localUrlMapRef.current[String(song.id)] ?? null)
+      : song.audioUrl;
+
     if (!url) {
       toast({ title: "Audio missing", description: "Could not load this recording.", variant: "destructive" });
       return;
     }
-    if (audioRef.current) {
-      if (currentUrlRef.current) {
-        URL.revokeObjectURL(currentUrlRef.current);
-        currentUrlRef.current = null;
-      }
-      if (song.source === "local") currentUrlRef.current = url;
-      audioRef.current.src = url;
-      audioRef.current.play().then(() => setPlayingKey(song.key)).catch(() => {
+    const el = audioRef.current;
+    if (el) {
+      el.src = url;
+      el.load();
+      el.play().then(() => setPlayingKey(song.key)).catch(() => {
         setPlayingKey(null);
         toast({ title: "Playback failed", variant: "destructive" });
       });
