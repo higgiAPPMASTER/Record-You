@@ -1,0 +1,90 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/record-you-mobile/**"
+      - ".github/workflows/build-android-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bGVnaWJsZS1zcGFycm93LTUwLmNsZXJrLmFjY291bnRzLmRldiQ
+      EXPO_PUBLIC_DOMAIN: music-studio--higgi1111.replit.app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Expo prebuild (Android)
+        working-directory: artifacts/record-you-mobile
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Generate debug keystore for signing
+        working-directory: artifacts/record-you-mobile/android/app
+        run: |
+          keytool -genkeypair -v \
+            -keystore release.keystore \
+            -alias release \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Record You, OU=Dev, O=Higgi, L=PGH, S=PA, C=US"
+
+      - name: Configure release signing
+        working-directory: artifacts/record-you-mobile/android
+        run: |
+          cat >> gradle.properties <<EOF
+          MYAPP_RELEASE_STORE_FILE=release.keystore
+          MYAPP_RELEASE_KEY_ALIAS=release
+          MYAPP_RELEASE_STORE_PASSWORD=android
+          MYAPP_RELEASE_KEY_PASSWORD=android
+          EOF
+          # Inject signingConfig into app/build.gradle release block
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path("app/build.gradle")
+          s = p.read_text()
+          signing = """
+              release {
+                  storeFile file(MYAPP_RELEASE_STORE_FILE)
+                  storePassword MYAPP_RELEASE_STORE_PASSWORD
+                  keyAlias MYAPP_RELEASE_KEY_ALIAS
+                  keyPassword MYAPP_RELEASE_KEY_PASSWORD
+              }
+          """
+          s = re.sub(r"signingConfigs\s*\{", "signingConfigs {\n" + signing, s, count=1)
+          s = s.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release")
+          p.write_text(s)
+          PY
+
+      - name: Build release APK
+        working-directory: artifacts/record-you-mobile/android
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: record-you-apk
+          path: artifacts/record-you-mobile/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
