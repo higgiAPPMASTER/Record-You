@@ -1,7 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useCreateSong, getListSongsQueryKey, getGetSongStatsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Mic, Square, Pause, Play, Save, Loader2, RefreshCcw, Timer } from "lucide-react";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { extractWaveformPeaks } from "@/lib/waveform";
@@ -15,12 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { saveLocalSong } from "@/lib/local-songs";
 
 export default function Record() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const createSong = useCreateSong();
 
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
@@ -70,24 +67,18 @@ export default function Record() {
 
     setIsSaving(true);
     try {
-      const song = await createSong.mutateAsync({
-        data: { title: title.trim(), tags: tags.trim(), notes: notes.trim() },
+      const peaks = await extractWaveformPeaks(audioBlob).catch(() => [] as number[]);
+      const song = await saveLocalSong({
+        title: title.trim(),
+        tags: tags.trim(),
+        notes: notes.trim(),
+        duration: recordingTime,
+        blob: audioBlob,
+        mimeType: audioBlob.type || "audio/webm",
+        waveform: peaks.length > 0 ? peaks : null,
       });
 
-      const peaks = await extractWaveformPeaks(audioBlob);
-
-      const formData = new FormData();
-      formData.append("audio", audioBlob, "recording.webm");
-      formData.append("duration", recordingTime.toString());
-      if (peaks.length > 0) formData.append("waveform", JSON.stringify(peaks));
-
-      const uploadRes = await fetch(`/api/songs/${song.id}/audio`, { method: "POST", body: formData });
-      if (!uploadRes.ok) throw new Error("Audio upload failed");
-
-      queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetSongStatsQueryKey() });
-
-      toast({ title: "Track saved", description: "Your recording has been saved to the library." });
+      toast({ title: "Track saved", description: "Saved to this device." });
       setLocation(`/song/${song.id}`);
     } catch {
       toast({ title: "Error saving track", description: "Something went wrong while saving.", variant: "destructive" });
@@ -99,11 +90,10 @@ export default function Record() {
     <div className="p-8 max-w-4xl mx-auto h-full flex flex-col">
       <div className="mb-8">
         <h1 className="text-4xl font-bold tracking-tight mb-2">Studio</h1>
-        <p className="text-muted-foreground text-lg">Capture your ideas directly to the cloud.</p>
+        <p className="text-muted-foreground text-lg">Capture your ideas — saved to this device.</p>
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column: Visualizer & Controls */}
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col p-8 border-border bg-card shadow-lg relative overflow-hidden flex-1">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent pointer-events-none opacity-50" />
@@ -168,7 +158,6 @@ export default function Record() {
             </div>
           </Card>
 
-          {/* Metronome */}
           <Card className="p-5 border-border bg-card">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -186,7 +175,6 @@ export default function Record() {
               </Button>
             </div>
 
-            {/* Beat visualizer */}
             <div className="flex gap-2 justify-center mb-4">
               {[0, 1, 2, 3].map((b) => (
                 <div
@@ -233,7 +221,6 @@ export default function Record() {
           </Card>
         </div>
 
-        {/* Right Column: Metadata Form */}
         <Card
           className={`p-8 border-border bg-card transition-opacity duration-300 ${
             !audioBlob && !isRecording && !isSaving ? "opacity-50 pointer-events-none grayscale-[50%]" : "opacity-100"

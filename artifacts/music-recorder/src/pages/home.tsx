@@ -1,7 +1,5 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { useListSongs, useDeleteSong, getListSongsQueryKey, getGetSongStatsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -10,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import {
+  listLocalSongs,
+  deleteLocalSong,
+  getLocalAudioUrl,
+  getLocalBlob,
+  type LocalSong,
+} from "@/lib/local-songs";
 
 function WaveformBars({ peaks, isPlaying }: { peaks: number[]; isPlaying: boolean }) {
   const W = 120;
@@ -39,17 +44,34 @@ function WaveformBars({ peaks, isPlaying }: { peaks: number[]; isPlaying: boolea
 }
 
 export default function Home() {
-  const { data: songs = [], isLoading } = useListSongs();
-  const deleteSong = useDeleteSong();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [songs, setSongs] = useState<LocalSong[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [playingId, setPlayingId] = useState<number | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentUrlRef = useRef<string | null>(null);
 
-  // Collect all unique tags
+  const reload = useCallback(() => {
+    setSongs(listLocalSongs());
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    reload();
+    const onFocus = () => reload();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [reload]);
+
+  useEffect(() => {
+    return () => {
+      if (currentUrlRef.current) URL.revokeObjectURL(currentUrlRef.current);
+    };
+  }, []);
+
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     songs.forEach((s) => s.tags?.split(",").forEach((t) => tagSet.add(t.trim())));
@@ -64,39 +86,46 @@ export default function Home() {
     });
   }, [songs, search, activeTag]);
 
-  const togglePlay = (songId: number, audioUrl: string | null | undefined) => {
-    if (!audioUrl) return;
+  const togglePlay = async (songId: string) => {
     if (playingId === songId) {
       audioRef.current?.pause();
       setPlayingId(null);
-    } else {
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.play().then(() => {
-          setPlayingId(songId);
-        }).catch(() => {
-          setPlayingId(null);
-          toast({ title: "Playback failed", description: "Could not play this track.", variant: "destructive" });
-        });
-      }
+      return;
+    }
+    const url = await getLocalAudioUrl(songId);
+    if (!url) {
+      toast({ title: "Audio missing", description: "Could not load this recording.", variant: "destructive" });
+      return;
+    }
+    if (audioRef.current) {
+      if (currentUrlRef.current) URL.revokeObjectURL(currentUrlRef.current);
+      currentUrlRef.current = url;
+      audioRef.current.src = url;
+      audioRef.current.play().then(() => setPlayingId(songId)).catch(() => {
+        setPlayingId(null);
+        toast({ title: "Playback failed", variant: "destructive" });
+      });
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this track?")) {
-      await deleteSong.mutateAsync({ id });
-      queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetSongStatsQueryKey() });
+      if (playingId === id) {
+        audioRef.current?.pause();
+        setPlayingId(null);
+      }
+      await deleteLocalSong(id);
+      reload();
     }
   };
 
-  const handleDownload = async (audioUrl: string, title: string) => {
-    const res = await fetch(audioUrl);
-    const blob = await res.blob();
+  const handleDownload = async (id: string, title: string, mimeType: string) => {
+    const blob = await getLocalBlob(id);
+    if (!blob) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.webm`;
+    a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.${mimeType.includes("m4a") || mimeType.includes("mp4") ? "m4a" : "webm"}`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -113,7 +142,7 @@ export default function Home() {
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-4xl font-bold tracking-tight mb-2">Library</h1>
-          <p className="text-muted-foreground text-lg">Your recent ideas and recordings.</p>
+          <p className="text-muted-foreground text-lg">Your recordings — saved on this device.</p>
         </div>
         <Button asChild size="lg" className="rounded-full px-8 gap-2 font-medium">
           <Link href="/record">
@@ -123,7 +152,6 @@ export default function Home() {
         </Button>
       </div>
 
-      {/* Search + tag filter */}
       {songs.length > 0 && (
         <div className="space-y-3 mb-6">
           <div className="relative">
@@ -190,8 +218,7 @@ export default function Home() {
                   className={`w-14 h-14 rounded-full flex-shrink-0 transition-colors ${
                     playingId === song.id ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""
                   }`}
-                  disabled={!song.hasAudio}
-                  onClick={() => togglePlay(song.id, song.audioUrl)}
+                  onClick={() => togglePlay(song.id)}
                 >
                   {playingId === song.id ? (
                     <Pause className="w-6 h-6" />
@@ -224,15 +251,13 @@ export default function Home() {
                             Details
                           </Link>
                         </DropdownMenuItem>
-                        {song.hasAudio && song.audioUrl && (
-                          <DropdownMenuItem
-                            data-testid={`button-download-${song.id}`}
-                            onClick={() => handleDownload(song.audioUrl!, song.title)}
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Download
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem
+                          data-testid={`button-download-${song.id}`}
+                          onClick={() => handleDownload(song.id, song.title, song.mimeType)}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Download
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleDelete(song.id)}
                           className="text-destructive focus:text-destructive"
@@ -253,9 +278,9 @@ export default function Home() {
                       <Calendar className="w-3.5 h-3.5" />
                       {format(new Date(song.createdAt), "MMM d, yyyy")}
                     </div>
-                    {song.waveformData && song.waveformData.length > 0 && (
+                    {song.waveform && song.waveform.length > 0 && (
                       <div className="ml-auto">
-                        <WaveformBars peaks={song.waveformData} isPlaying={playingId === song.id} />
+                        <WaveformBars peaks={song.waveform} isPlaying={playingId === song.id} />
                       </div>
                     )}
                   </div>

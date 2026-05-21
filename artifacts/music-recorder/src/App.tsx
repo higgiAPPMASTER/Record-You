@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Record from "@/pages/record";
 import SongDetail from "@/pages/song";
+import Shared from "@/pages/shared";
 import Mixer from "@/pages/mixer";
 import Tuner from "@/pages/tuner";
 import Chords from "@/pages/chords";
@@ -22,6 +23,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/record" component={Record} />
         <Route path="/song/:id" component={SongDetail} />
+        <Route path="/shared/:id" component={Shared} />
         <Route path="/mixer" component={Mixer} />
         <Route path="/tuner" component={Tuner} />
         <Route path="/chords" component={Chords} />

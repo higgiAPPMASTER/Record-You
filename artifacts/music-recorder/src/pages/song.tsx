@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
+import { useCreateSong } from "@workspace/api-client-react";
 import {
-  useGetSong, useUpdateSong, useDeleteSong,
-  getGetSongQueryKey, getListSongsQueryKey, getGetSongStatsQueryKey,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge } from "lucide-react";
+  Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge, Share2, Copy, Check, HardDrive,
+} from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,21 +12,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  getLocalSong, updateLocalSong, deleteLocalSong, getLocalAudioUrl, getLocalBlob, formatBytes, type LocalSong,
+} from "@/lib/local-songs";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export default function SongDetail() {
   const [, params] = useRoute("/song/:id");
-  const id = Number(params?.id);
+  const id = String(params?.id ?? "");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: song, isLoading } = useGetSong(id, {
-    query: { enabled: !!id, queryKey: getGetSongQueryKey(id) },
-  });
-  const updateSong = useUpdateSong();
-  const deleteSong = useDeleteSong();
+  const [song, setSong] = useState<LocalSong | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  const createSong = useCreateSong();
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -39,24 +42,34 @@ export default function SongDetail() {
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [notes, setNotes] = useState("");
-  const initializedForId = useRef<number | null>(null);
 
   useEffect(() => {
-    if (song && initializedForId.current !== id) {
-      initializedForId.current = id;
-      setTitle(song.title);
-      setTags(song.tags || "");
-      setNotes(song.notes || "");
+    if (!id) return;
+    const s = getLocalSong(id);
+    setSong(s);
+    setIsLoading(false);
+    if (s) {
+      setTitle(s.title);
+      setTags(s.tags || "");
+      setNotes(s.notes || "");
+      if (s.cloudId != null) {
+        const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+        setShareUrl(`${window.location.origin}${base}/shared/${s.cloudId}`);
+      }
+      getLocalAudioUrl(id).then(setAudioUrl);
     }
-  }, [song, id]);
+  }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
 
   const togglePlay = () => {
-    if (!audioRef.current || !song?.audioUrl) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(() => setIsPlaying(false));
-    }
+    if (!audioRef.current || !audioUrl) return;
+    if (isPlaying) audioRef.current.pause();
+    else audioRef.current.play().catch(() => setIsPlaying(false));
   };
 
   const handleTimeUpdate = () => {
@@ -77,13 +90,14 @@ export default function SongDetail() {
   };
 
   const handleDownload = async () => {
-    if (!song?.audioUrl) return;
-    const res = await fetch(song.audioUrl);
-    const blob = await res.blob();
+    if (!song) return;
+    const blob = await getLocalBlob(song.id);
+    if (!blob) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+    const ext = song.mimeType.includes("m4a") || song.mimeType.includes("mp4") ? "m4a" : "webm";
     a.href = url;
-    a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.webm`;
+    a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -96,25 +110,78 @@ export default function SongDetail() {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) return;
-    try {
-      await updateSong.mutateAsync({ id, data: { title: title.trim(), tags: tags.trim(), notes: notes.trim() } });
-      queryClient.invalidateQueries({ queryKey: getGetSongQueryKey(id) });
-      queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
-      setIsEditing(false);
-      toast({ title: "Track updated" });
-    } catch {
-      toast({ title: "Error updating track", variant: "destructive" });
-    }
+    if (!song || !title.trim()) return;
+    const updated = updateLocalSong(song.id, { title: title.trim(), tags: tags.trim(), notes: notes.trim() });
+    if (updated) setSong(updated);
+    setIsEditing(false);
+    toast({ title: "Track updated" });
   };
 
   const handleDelete = async () => {
+    if (!song) return;
     if (window.confirm("Are you sure you want to delete this track permanently?")) {
-      await deleteSong.mutateAsync({ id });
-      queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetSongStatsQueryKey() });
+      await deleteLocalSong(song.id);
       toast({ title: "Track deleted" });
       setLocation("/");
+    }
+  };
+
+  const handleShare = async () => {
+    if (!song) return;
+    setIsSharing(true);
+    try {
+      const blob = await getLocalBlob(song.id);
+      if (!blob) throw new Error("No audio");
+
+      let cloudId = song.cloudId;
+      if (cloudId == null) {
+        const created = await createSong.mutateAsync({
+          data: { title: song.title, tags: song.tags, notes: song.notes },
+        });
+        cloudId = created.id;
+
+        const formData = new FormData();
+        formData.append("audio", blob, "recording.webm");
+        formData.append("duration", song.duration.toString());
+        if (song.waveform && song.waveform.length > 0) {
+          formData.append("waveform", JSON.stringify(song.waveform));
+        }
+        const res = await fetch(`/api/songs/${cloudId}/audio`, { method: "POST", body: formData });
+        if (!res.ok) throw new Error("Upload failed");
+
+        const updated = updateLocalSong(song.id, { cloudId });
+        if (updated) setSong(updated);
+      }
+
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const url = `${window.location.origin}${base}/shared/${cloudId}`;
+      setShareUrl(url);
+
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: song.title, url });
+        } catch {
+          // user canceled — fallback to copy below
+          await copyShareUrl(url);
+        }
+      } else {
+        await copyShareUrl(url);
+      }
+    } catch {
+      toast({ title: "Share failed", description: "Could not create a share link.", variant: "destructive" });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const copyShareUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ title: "Link copied", description: "Share link copied to clipboard." });
+    } catch {
+      toast({ title: "Copy failed", variant: "destructive" });
     }
   };
 
@@ -140,7 +207,6 @@ export default function SongDetail() {
       </Button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Col: Player & Info */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6 bg-card/80 border-border backdrop-blur-sm">
             <div className="flex justify-between items-start mb-6">
@@ -156,7 +222,7 @@ export default function SongDetail() {
               )}
             </div>
 
-            <div className="flex items-center gap-6 text-sm text-muted-foreground font-mono mb-8">
+            <div className="flex items-center gap-6 text-sm text-muted-foreground font-mono mb-8 flex-wrap">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 {formatDuration(song.duration)}
@@ -165,13 +231,17 @@ export default function SongDetail() {
                 <Calendar className="w-4 h-4" />
                 {format(new Date(song.createdAt), "MMMM d, yyyy")}
               </div>
+              <div className="flex items-center gap-2">
+                <HardDrive className="w-4 h-4" />
+                {formatBytes(song.bytes)} · on this device
+              </div>
             </div>
 
-            {song.hasAudio && song.audioUrl ? (
+            {audioUrl ? (
               <div className="bg-background/80 rounded-2xl p-6 border border-border shadow-inner space-y-4">
                 <audio
                   ref={audioRef}
-                  src={song.audioUrl}
+                  src={audioUrl}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
                   onEnded={() => { setIsPlaying(false); setCurrentTime(0); }}
@@ -204,7 +274,6 @@ export default function SongDetail() {
                   </div>
                 </div>
 
-                {/* Playback speed */}
                 <div className="flex items-center gap-3 pt-2 border-t border-border/50">
                   <Gauge className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span className="text-xs text-muted-foreground font-medium">Speed</span>
@@ -229,7 +298,7 @@ export default function SongDetail() {
               </div>
             ) : (
               <div className="bg-muted/50 rounded-2xl p-6 border border-border text-center text-muted-foreground text-sm">
-                No audio recorded for this track.
+                Loading audio...
               </div>
             )}
           </Card>
@@ -252,7 +321,6 @@ export default function SongDetail() {
           </Card>
         </div>
 
-        {/* Right Col: Meta & Actions */}
         <div className="space-y-6">
           <Card className="p-6 bg-card border-border">
             <h3 className="font-semibold mb-4 text-sm uppercase tracking-wider text-muted-foreground">Tags</h3>
@@ -294,17 +362,49 @@ export default function SongDetail() {
               </Button>
             )}
 
-            {song.hasAudio && song.audioUrl && (
-              <Button
-                data-testid="button-download"
-                variant="outline"
-                className="w-full gap-2"
-                onClick={handleDownload}
-              >
-                <Download className="w-4 h-4" />
-                Download Audio
-              </Button>
+            <Button
+              data-testid="button-share"
+              className="w-full gap-2"
+              onClick={handleShare}
+              disabled={isSharing}
+            >
+              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+              {isSharing ? "Uploading..." : song.cloudId != null ? "Share Link" : "Upload & Share"}
+            </Button>
+
+            {shareUrl && (
+              <div className="rounded-lg border border-border bg-background/50 p-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  Share link
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={shareUrl}
+                    className="text-xs font-mono bg-background h-8"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => copyShareUrl(shareUrl)}
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
+              </div>
             )}
+
+            <Button
+              data-testid="button-download"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={handleDownload}
+            >
+              <Download className="w-4 h-4" />
+              Download Audio
+            </Button>
 
             <div className="h-px bg-border my-2" />
             <Button
