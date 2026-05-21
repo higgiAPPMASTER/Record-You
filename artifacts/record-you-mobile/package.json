@@ -61,6 +61,7 @@
   },
   "dependencies": {
     "expo-av": "^16.0.8",
+    "expo-build-properties": "^55.0.14",
     "expo-clipboard": "^55.0.13",
     "expo-modules-autolinking": "^55.0.23",
     "lucide-react-native": "^1.16.0",
