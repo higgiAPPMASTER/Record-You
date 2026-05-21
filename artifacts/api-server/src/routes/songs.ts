@@ -1,9 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { eq, desc, sum, count, and, gte } from "drizzle-orm";
-import { randomUUID } from "crypto";
-import { getAuth } from "@clerk/express";
-import { db, songsTable, collaborationsTable } from "@workspace/db";
+import { eq, desc, sum, count } from "drizzle-orm";
+import { db, songsTable } from "@workspace/db";
 import {
   CreateSongBody,
   UpdateSongBody,
@@ -17,20 +15,6 @@ const router: IRouter = Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 const objectStorage = new ObjectStorageService();
-
-function getUserId(req: any): string | null {
-  const auth = getAuth(req);
-  return auth?.userId ?? null;
-}
-
-function requireUserId(req: any, res: any): string | null {
-  const userId = getUserId(req);
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return null;
-  }
-  return userId;
-}
 
 function formatSong(song: typeof songsTable.$inferSelect) {
   const audioUrl = song.audioObjectPath
@@ -49,22 +33,16 @@ function formatSong(song: typeof songsTable.$inferSelect) {
     audioUrl,
     hasAudio: !!song.audioObjectPath,
     waveformData,
-    isPublic: song.isPublic,
-    seekingHelp: song.seekingHelp ?? null,
-    shareToken: song.shareToken ?? null,
     createdAt: song.createdAt.toISOString(),
     updatedAt: song.updatedAt.toISOString(),
   };
 }
 
 router.get("/songs", async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
   try {
     const songs = await db
       .select()
       .from(songsTable)
-      .where(eq(songsTable.userId, userId))
       .orderBy(desc(songsTable.createdAt));
     res.json(songs.map((s) => formatSong(s)));
   } catch (err) {
@@ -74,8 +52,6 @@ router.get("/songs", async (req, res) => {
 });
 
 router.post("/songs", async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
   const parsed = CreateSongBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -85,7 +61,6 @@ router.post("/songs", async (req, res) => {
     const [song] = await db
       .insert(songsTable)
       .values({
-        userId,
         title: parsed.data.title,
         notes: parsed.data.notes ?? null,
         tags: parsed.data.tags ?? null,
@@ -99,8 +74,6 @@ router.post("/songs", async (req, res) => {
 });
 
 router.get("/songs/stats", async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
   try {
     const [stats] = await db
       .select({
@@ -108,32 +81,19 @@ router.get("/songs/stats", async (req, res) => {
         totalDuration: sum(songsTable.duration),
         songsWithAudio: count(songsTable.audioObjectPath),
       })
-      .from(songsTable)
-      .where(eq(songsTable.userId, userId));
+      .from(songsTable);
 
     const recentSongs = await db
       .select()
       .from(songsTable)
-      .where(eq(songsTable.userId, userId))
       .orderBy(desc(songsTable.createdAt))
       .limit(5);
-
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const [collabStats] = await db
-      .select({ recentCollabs: count() })
-      .from(collaborationsTable)
-      .innerJoin(songsTable, eq(collaborationsTable.songId, songsTable.id))
-      .where(and(
-        eq(songsTable.userId, userId),
-        gte(collaborationsTable.createdAt, sevenDaysAgo),
-      ));
 
     res.json({
       totalSongs: stats.totalSongs ?? 0,
       totalDuration: Number(stats.totalDuration ?? 0),
       songsWithAudio: stats.songsWithAudio ?? 0,
       recentSongs: recentSongs.map((s) => formatSong(s)),
-      recentCollabs: Number(collabStats?.recentCollabs ?? 0),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get song stats");
@@ -164,8 +124,6 @@ router.get("/songs/:id", async (req, res) => {
 });
 
 router.patch("/songs/:id", async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
   const parsedParams = UpdateSongParams.safeParse({ id: Number(req.params.id) });
   const parsedBody = UpdateSongBody.safeParse(req.body);
   if (!parsedParams.success || !parsedBody.success) {
@@ -173,10 +131,6 @@ router.patch("/songs/:id", async (req, res) => {
     return;
   }
   try {
-    const [existing] = await db.select().from(songsTable).where(eq(songsTable.id, parsedParams.data.id));
-    if (!existing) { res.status(404).json({ error: "Song not found" }); return; }
-    if (existing.userId && existing.userId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
-
     const [updated] = await db
       .update(songsTable)
       .set({
@@ -187,6 +141,10 @@ router.patch("/songs/:id", async (req, res) => {
       })
       .where(eq(songsTable.id, parsedParams.data.id))
       .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Song not found" });
+      return;
+    }
     res.json(formatSong(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to update song");
@@ -195,19 +153,20 @@ router.patch("/songs/:id", async (req, res) => {
 });
 
 router.delete("/songs/:id", async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
   const parsed = DeleteSongParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
   try {
-    const [existing] = await db.select().from(songsTable).where(eq(songsTable.id, parsed.data.id));
-    if (!existing) { res.status(404).json({ error: "Song not found" }); return; }
-    if (existing.userId && existing.userId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
-
-    await db.delete(songsTable).where(eq(songsTable.id, parsed.data.id));
+    const [deleted] = await db
+      .delete(songsTable)
+      .where(eq(songsTable.id, parsed.data.id))
+      .returning();
+    if (!deleted) {
+      res.status(404).json({ error: "Song not found" });
+      return;
+    }
     res.status(204).send();
   } catch (err) {
     req.log.error({ err }, "Failed to delete song");
@@ -215,108 +174,7 @@ router.delete("/songs/:id", async (req, res) => {
   }
 });
 
-router.post("/songs/:id/share", async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
-  const id = Number(req.params.id);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  try {
-    const [song] = await db.select().from(songsTable).where(eq(songsTable.id, id));
-    if (!song) { res.status(404).json({ error: "Song not found" }); return; }
-    if (song.userId && song.userId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
-
-    let token = song.shareToken;
-    if (!token) {
-      token = randomUUID().replace(/-/g, "");
-      await db.update(songsTable).set({ shareToken: token, updatedAt: new Date() }).where(eq(songsTable.id, id));
-    }
-    const protocol = (req.headers["x-forwarded-proto"] as string) || "https";
-    const host = (req.headers["x-forwarded-host"] as string) || (req.headers.host as string) || "localhost";
-    const shareUrl = `${protocol}://${host}/collab/${token}`;
-    res.json({ shareToken: token, shareUrl });
-  } catch (err) {
-    req.log.error({ err }, "Failed to share song");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.post("/songs/:id/publish", async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
-  const id = Number(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const { isPublic, seekingHelp } = req.body as { isPublic?: boolean; seekingHelp?: string };
-  if (typeof isPublic !== "boolean") { res.status(400).json({ error: "isPublic (boolean) required" }); return; }
-  try {
-    const [song] = await db.select().from(songsTable).where(eq(songsTable.id, id));
-    if (!song) { res.status(404).json({ error: "Song not found" }); return; }
-    if (song.userId && song.userId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
-
-    let token = song.shareToken;
-    if (isPublic && !token) {
-      token = randomUUID().replace(/-/g, "");
-    }
-
-    const [updated] = await db
-      .update(songsTable)
-      .set({
-        isPublic,
-        seekingHelp: seekingHelp?.trim() || null,
-        ...(token && !song.shareToken ? { shareToken: token } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(songsTable.id, id))
-      .returning();
-
-    res.json(formatSong(updated));
-  } catch (err) {
-    req.log.error({ err }, "Failed to update publish status");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.get("/sessions", async (req, res) => {
-  try {
-    const songs = await db
-      .select()
-      .from(songsTable)
-      .where(eq(songsTable.isPublic, true))
-      .orderBy(desc(songsTable.updatedAt));
-
-    const results = await Promise.all(
-      songs.map(async (song) => {
-        const [{ collabCount }] = await db
-          .select({ collabCount: count() })
-          .from(collaborationsTable)
-          .where(eq(collaborationsTable.songId, song.id));
-        return {
-          id: song.id,
-          title: song.title,
-          hasAudio: !!song.audioObjectPath,
-          isPublic: song.isPublic,
-          seekingHelp: song.seekingHelp ?? null,
-          duration: song.duration ?? null,
-          collabCount: Number(collabCount ?? 0),
-          shareToken: song.shareToken!,
-          audioUrl: song.audioObjectPath ? `/api/songs/${song.id}/audio` : null,
-          createdAt: song.createdAt.toISOString(),
-        };
-      })
-    );
-
-    res.json(results);
-  } catch (err) {
-    req.log.error({ err }, "Failed to list sessions");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
 router.post("/songs/:id/audio", upload.single("audio"), async (req, res) => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
   const id = Number(req.params.id);
   if (!req.file) {
     res.status(400).json({ error: "No audio file provided" });
@@ -329,10 +187,6 @@ router.post("/songs/:id/audio", upload.single("audio"), async (req, res) => {
       .where(eq(songsTable.id, id));
     if (!existing) {
       res.status(404).json({ error: "Song not found" });
-      return;
-    }
-    if (existing.userId && existing.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
       return;
     }
 

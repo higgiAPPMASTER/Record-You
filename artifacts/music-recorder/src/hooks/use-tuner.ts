@@ -13,7 +13,7 @@ export interface TunerResult {
 }
 
 function freqToNote(freq: number): TunerResult {
-  const midi = 12 * Math.log2(freq / A4_FREQ) + A4_MIDI;
+  const midi = 12 * (Math.log2(freq / A4_FREQ)) + A4_MIDI;
   const rounded = Math.round(midi);
   const cents = Math.round((midi - rounded) * 100);
   const noteIndex = ((rounded % 12) + 12) % 12;
@@ -27,69 +27,62 @@ function freqToNote(freq: number): TunerResult {
   };
 }
 
-// Autocorrelation-based pitch detection.
-// Key fix: find the FIRST local peak above threshold, not the highest overall peak.
-// Finding the global max picks octave errors (2× period often has higher correlation).
+// Autocorrelation-based pitch detection
 function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
   const SIZE = buffer.length;
-  const MAX_LAG = Math.floor(SIZE / 2);
+  const MAX_SAMPLES = Math.floor(SIZE / 2);
 
-  // RMS energy check — bail on silence
+  // RMS check — bail on silence
   let rms = 0;
   for (let i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.005) return null;
+  if (rms < 0.01) return null;
 
-  // Standard autocorrelation
-  const c = new Float32Array(MAX_LAG);
-  for (let lag = 0; lag < MAX_LAG; lag++) {
+  // Autocorrelation
+  const c = new Float32Array(MAX_SAMPLES);
+  for (let lag = 0; lag < MAX_SAMPLES; lag++) {
     let sum = 0;
-    const end = SIZE - lag;
-    for (let i = 0; i < end; i++) {
+    for (let i = 0; i < MAX_SAMPLES; i++) {
       sum += buffer[i] * buffer[i + lag];
     }
     c[lag] = sum;
   }
 
-  const c0 = c[0];
-  if (c0 <= 0) return null;
-
-  // Skip past the initial valley at lag=0
-  // Use >= to handle flat/noisy regions near zero-crossing
+  // Find first valley (drop from peak)
   let d = 0;
-  while (d < MAX_LAG - 2 && c[d] >= c[d + 1]) d++;
+  while (d < MAX_SAMPLES && c[d] > c[d + 1]) d++;
 
-  // Find the FIRST local maximum after the valley that clears the confidence bar.
-  // Confidence = peak / c[0] (normalized autocorrelation). Guitar/voice: 0.35 works well.
-  const CONFIDENCE = 0.35;
-
-  for (let i = d + 1; i < MAX_LAG - 1; i++) {
-    const isLocalMax = c[i] >= c[i - 1] && c[i] > c[i + 1];
-    if (!isLocalMax) continue;
-    if (c[i] / c0 < CONFIDENCE) continue;
-
-    // Parabolic interpolation for sub-sample accuracy
-    const x1 = c[i - 1];
-    const x2 = c[i];
-    const x3 = c[i + 1];
-    const denom = x1 + x3 - 2 * x2;
-    const peak = denom !== 0 ? i - (x3 - x1) / (2 * denom) : i;
-
-    const freq = sampleRate / peak;
-
-    // Clamp to musical range: B0 (30.87 Hz) – B8 (7902 Hz)
-    if (freq < 30 || freq > 8000) return null;
-
-    return freq;
+  // Find highest peak after the valley
+  let maxVal = -Infinity;
+  let maxPos = -1;
+  for (let i = d; i < MAX_SAMPLES; i++) {
+    if (c[i] > maxVal) {
+      maxVal = c[i];
+      maxPos = i;
+    }
   }
+  if (maxPos === -1) return null;
 
-  return null;
+  // Parabolic interpolation for sub-sample accuracy
+  const x1 = c[maxPos - 1] ?? c[maxPos];
+  const x2 = c[maxPos];
+  const x3 = c[maxPos + 1] ?? c[maxPos];
+  const a = (x1 + x3 - 2 * x2) / 2;
+  const b = (x3 - x1) / 2;
+  const refinedPos = a !== 0 ? maxPos - b / (2 * a) : maxPos;
+
+  const freq = sampleRate / refinedPos;
+
+  // Clamp to musical range: B0 (30.87 Hz) – B8 (7902 Hz)
+  if (freq < 30 || freq > 8000) return null;
+
+  // Confidence check
+  if (maxVal / c[0] < 0.5) return null;
+
+  return freq;
 }
 
 export type TunerState = "idle" | "listening" | "error";
-
-// How many silent frames before we blank the display (prevents flickering)
-const HOLD_FRAMES = 6;
 
 export function useTuner() {
   const [tunerState, setTunerState] = useState<TunerState>("idle");
@@ -101,7 +94,6 @@ export function useTuner() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number>(0);
   const bufferRef = useRef<Float32Array<ArrayBuffer> | null>(null);
-  const silentFramesRef = useRef(0);
 
   const tick = useCallback(() => {
     const analyser = analyserRef.current;
@@ -113,14 +105,9 @@ export function useTuner() {
     const freq = detectPitch(buf, ctx.sampleRate);
 
     if (freq !== null) {
-      silentFramesRef.current = 0;
       setResult(freqToNote(freq));
     } else {
-      silentFramesRef.current += 1;
-      // Hold the last good result for a few frames — avoids flicker between notes
-      if (silentFramesRef.current >= HOLD_FRAMES) {
-        setResult(null);
-      }
+      setResult(null);
     }
 
     rafRef.current = requestAnimationFrame(tick);
@@ -129,28 +116,17 @@ export function useTuner() {
   const start = useCallback(async () => {
     setErrorMsg(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          // Higher sample rate = better frequency resolution
-          sampleRate: { ideal: 44100 },
-        },
-        video: false,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       streamRef.current = stream;
 
-      const ctx = new AudioContext({ sampleRate: 44100 });
+      const ctx = new AudioContext();
       audioCtxRef.current = ctx;
 
       const analyser = ctx.createAnalyser();
-      // 8192 samples @ 44100 Hz → freq resolution ~5.4 Hz, good for low E (82 Hz)
-      analyser.fftSize = 8192;
-      analyser.smoothingTimeConstant = 0;
+      analyser.fftSize = 4096;
+      analyser.smoothingTimeConstant = 0.85;
       analyserRef.current = analyser;
       bufferRef.current = new Float32Array(analyser.fftSize) as Float32Array<ArrayBuffer>;
-      silentFramesRef.current = 0;
 
       const source = ctx.createMediaStreamSource(stream);
       source.connect(analyser);
@@ -170,7 +146,6 @@ export function useTuner() {
     audioCtxRef.current = null;
     streamRef.current = null;
     analyserRef.current = null;
-    silentFramesRef.current = 0;
     setTunerState("idle");
     setResult(null);
   }, []);

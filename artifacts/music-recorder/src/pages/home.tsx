@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { Link } from "wouter";
 import { useListSongs, useDeleteSong, getListSongsQueryKey, getGetSongStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag, Share2 } from "lucide-react";
+import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -87,18 +87,6 @@ export default function Home() {
       await deleteSong.mutateAsync({ id });
       queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetSongStatsQueryKey() });
-    }
-  };
-
-  const handleShare = async (id: number) => {
-    try {
-      const res = await fetch(`/api/songs/${id}/share`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed");
-      const { shareUrl } = await res.json();
-      await navigator.clipboard.writeText(shareUrl);
-      toast({ title: "Link copied!", description: "Share it with your collaborator." });
-    } catch {
-      toast({ title: "Could not copy link", variant: "destructive" });
     }
   };
 
@@ -236,12 +224,6 @@ export default function Home() {
                             Details
                           </Link>
                         </DropdownMenuItem>
-                        {song.hasAudio && (
-                          <DropdownMenuItem onClick={() => handleShare(song.id)}>
-                            <Share2 className="w-4 h-4 mr-2" />
-                            Share for collab
-                          </DropdownMenuItem>
-                        )}
                         {song.hasAudio && song.audioUrl && (
                           <DropdownMenuItem
                             data-testid={`button-download-${song.id}`}

@@ -2,13 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import {
   useGetSong, useUpdateSong, useDeleteSong,
-  useCreateCommunityPost,
   getGetSongQueryKey, getListSongsQueryKey, getGetSongStatsQueryKey,
-  getListCommunityPostsQueryKey, getListMyCommunityPostsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUser } from "@clerk/react";
-import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge, Share2, Users, Globe, GlobeLock, Lock, Link2, Check } from "lucide-react";
+import { Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -32,29 +29,11 @@ export default function SongDetail() {
   });
   const updateSong = useUpdateSong();
   const deleteSong = useDeleteSong();
-  const createCommunityPost = useCreateCommunityPost();
-  const { user } = useUser();
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const [collabTracks, setCollabTracks] = useState<Array<{ id: number; authorName: string | null; audioUrl: string; duration: number | null; createdAt: string }>>([]);
-  const [collabPlayingId, setCollabPlayingId] = useState<number | null>(null);
-  const collabAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [seekingHelp, setSeekingHelp] = useState("");
-  const [showPublishInput, setShowPublishInput] = useState(false);
-
-  const [showCommunityForm, setShowCommunityForm] = useState(false);
-  const [communityVisibility, setCommunityVisibility] = useState<"public" | "friends">("public");
-  const [communityDisplayName, setCommunityDisplayName] = useState("");
-  const [communityNote, setCommunityNote] = useState("");
-  const [communitySubmitting, setCommunitySubmitting] = useState(false);
-  const [communityDone, setCommunityDone] = useState(false);
-  const [communityListenToken, setCommunityListenToken] = useState<string | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState("");
@@ -97,78 +76,6 @@ export default function SongDetail() {
     if (audioRef.current) audioRef.current.playbackRate = speed;
   };
 
-  useEffect(() => {
-    if (!song?.id) return;
-    fetch(`/api/songs/${song.id}/share`, { method: "POST" })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data?.shareToken) {
-          return fetch(`/api/collab/${data.shareToken}/tracks`).then((r) => r.json());
-        }
-        return undefined;
-      })
-      .then((tracks) => Array.isArray(tracks) && setCollabTracks(tracks))
-      .catch(() => {});
-  }, [song?.id]);
-
-  const handleShare = async () => {
-    if (!song) return;
-    try {
-      const res = await fetch(`/api/songs/${song.id}/share`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed");
-      const { shareUrl } = await res.json();
-      await navigator.clipboard.writeText(shareUrl);
-      toast({ title: "Link copied!", description: "Share it with your collaborator." });
-    } catch {
-      toast({ title: "Could not copy link", variant: "destructive" });
-    }
-  };
-
-  const handleOpenCommunityForm = () => {
-    setCommunityDone(false);
-    setCommunityListenToken(null);
-    setCommunityDisplayName(
-      user?.fullName ?? user?.primaryEmailAddress?.emailAddress?.split("@")[0] ?? ""
-    );
-    setCommunityNote("");
-    setCommunityVisibility("public");
-    setShowCommunityForm(true);
-  };
-
-  const handleShareToCommunity = async () => {
-    if (!song) return;
-    setCommunitySubmitting(true);
-    try {
-      const result = await createCommunityPost.mutateAsync({
-        data: {
-          songId: song.id,
-          displayName: communityDisplayName || undefined,
-          note: communityNote || undefined,
-          visibility: communityVisibility,
-        },
-      });
-      queryClient.invalidateQueries({ queryKey: getListCommunityPostsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListMyCommunityPostsQueryKey() });
-      setCommunityListenToken((result as { listenToken?: string }).listenToken ?? null);
-      setCommunityDone(true);
-    } catch {
-      toast({ title: "Failed to share", variant: "destructive" });
-    } finally {
-      setCommunitySubmitting(false);
-    }
-  };
-
-  const toggleCollabTrack = (trackId: number, audioUrl: string) => {
-    if (!collabAudioRef.current) return;
-    if (collabPlayingId === trackId) {
-      collabAudioRef.current.pause();
-      setCollabPlayingId(null);
-    } else {
-      collabAudioRef.current.src = audioUrl;
-      collabAudioRef.current.play().then(() => setCollabPlayingId(trackId)).catch(() => setCollabPlayingId(null));
-    }
-  };
-
   const handleDownload = async () => {
     if (!song?.audioUrl) return;
     const res = await fetch(song.audioUrl);
@@ -198,46 +105,6 @@ export default function SongDetail() {
       toast({ title: "Track updated" });
     } catch {
       toast({ title: "Error updating track", variant: "destructive" });
-    }
-  };
-
-  const handleTogglePublish = async () => {
-    if (!song) return;
-    const willPublish = !song.isPublic;
-    if (willPublish && showPublishInput) {
-      setIsPublishing(true);
-      try {
-        await fetch(`/api/songs/${song.id}/publish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isPublic: true, seekingHelp: seekingHelp.trim() }),
-        });
-        queryClient.invalidateQueries({ queryKey: getGetSongQueryKey(id) });
-        setShowPublishInput(false);
-        toast({ title: "Posted to Open Sessions!", description: "Other musicians can now find and collab on your song." });
-      } catch {
-        toast({ title: "Failed to post session", variant: "destructive" });
-      } finally {
-        setIsPublishing(false);
-      }
-    } else if (willPublish) {
-      setShowPublishInput(true);
-    } else {
-      setIsPublishing(true);
-      try {
-        await fetch(`/api/songs/${song.id}/publish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isPublic: false }),
-        });
-        queryClient.invalidateQueries({ queryKey: getGetSongQueryKey(id) });
-        setShowPublishInput(false);
-        toast({ title: "Removed from Open Sessions" });
-      } catch {
-        toast({ title: "Failed to remove session", variant: "destructive" });
-      } finally {
-        setIsPublishing(false);
-      }
     }
   };
 
@@ -427,157 +294,6 @@ export default function SongDetail() {
               </Button>
             )}
 
-            {song.hasAudio && (
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={handleShare}
-              >
-                <Share2 className="w-4 h-4" />
-                Share for Collab
-              </Button>
-            )}
-
-            {song.hasAudio && !showCommunityForm && (
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={handleOpenCommunityForm}
-              >
-                <Users className="w-4 h-4" />
-                Share to Community
-              </Button>
-            )}
-
-            {song.hasAudio && showCommunityForm && (
-              <div className="border border-border rounded-xl p-4 space-y-3 bg-background/50">
-                {communityDone ? (
-                  <div className="text-center space-y-2 py-1">
-                    <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center mx-auto">
-                      <Check className="w-4 h-4 text-primary" />
-                    </div>
-                    <p className="text-sm font-medium">
-                      {communityVisibility === "public" ? "Posted to community!" : "Friends link ready!"}
-                    </p>
-                    {communityListenToken && communityVisibility === "friends" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full gap-1.5 text-xs"
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/listen/${communityListenToken}`);
-                          toast({ title: "Link copied!" });
-                        }}
-                      >
-                        <Link2 className="w-3 h-3" /> Copy listen link
-                      </Button>
-                    )}
-                    <Button size="sm" variant="ghost" className="w-full text-xs" onClick={() => setShowCommunityForm(false)}>
-                      Done
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Share to Community</span>
-                      <button className="text-muted-foreground hover:text-foreground" onClick={() => setShowCommunityForm(false)}>
-                        ×
-                      </button>
-                    </div>
-
-                    {/* Visibility */}
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {(["public", "friends"] as const).map((v) => (
-                        <button
-                          key={v}
-                          onClick={() => setCommunityVisibility(v)}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all",
-                            communityVisibility === v
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border text-muted-foreground hover:border-foreground/30"
-                          )}
-                        >
-                          {v === "public" ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                          {v === "public" ? "Public" : "Friends link"}
-                        </button>
-                      ))}
-                    </div>
-
-                    <Input
-                      placeholder="Your name (optional)"
-                      value={communityDisplayName}
-                      onChange={(e) => setCommunityDisplayName(e.target.value)}
-                      className="text-sm h-8"
-                    />
-                    <Input
-                      placeholder="Add a note… (optional)"
-                      value={communityNote}
-                      onChange={(e) => setCommunityNote(e.target.value)}
-                      className="text-sm h-8"
-                    />
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={handleShareToCommunity}
-                      disabled={communitySubmitting}
-                    >
-                      {communitySubmitting
-                        ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Sharing…</>
-                        : communityVisibility === "public" ? "Post to Community" : "Get Friends Link"}
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {song.hasAudio && (
-              <div className="space-y-2">
-                {showPublishInput && !song.isPublic && (
-                  <div className="space-y-2">
-                    <Input
-                      value={seekingHelp}
-                      onChange={(e) => setSeekingHelp(e.target.value)}
-                      placeholder='What do you need? e.g. "lead guitar"'
-                      className="text-sm"
-                      onKeyDown={(e) => e.key === "Enter" && handleTogglePublish()}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1 gap-1.5 font-semibold"
-                        onClick={handleTogglePublish}
-                        disabled={isPublishing}
-                      >
-                        {isPublishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
-                        Post Session
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setShowPublishInput(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {(!showPublishInput || song.isPublic) && (
-                  <Button
-                    variant={song.isPublic ? "secondary" : "outline"}
-                    className={cn("w-full gap-2", song.isPublic && "border border-primary/30 text-primary")}
-                    onClick={handleTogglePublish}
-                    disabled={isPublishing}
-                  >
-                    {isPublishing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : song.isPublic ? (
-                      <GlobeLock className="w-4 h-4" />
-                    ) : (
-                      <Globe className="w-4 h-4" />
-                    )}
-                    {song.isPublic ? "Remove from Sessions" : "Post to Open Sessions"}
-                  </Button>
-                )}
-              </div>
-            )}
-
             {song.hasAudio && song.audioUrl && (
               <Button
                 data-testid="button-download"
@@ -600,38 +316,6 @@ export default function SongDetail() {
               <Trash className="w-4 h-4 mr-2" /> Delete Track
             </Button>
           </Card>
-
-          {/* Collaborations */}
-          {collabTracks.length > 0 && (
-            <Card className="p-6 bg-card border-border">
-              <div className="flex items-center gap-2 mb-4">
-                <Users className="w-4 h-4 text-primary" />
-                <h3 className="font-semibold">Collaborations</h3>
-                <span className="text-xs text-muted-foreground ml-1">({collabTracks.length})</span>
-              </div>
-              <audio ref={collabAudioRef} onEnded={() => setCollabPlayingId(null)} className="hidden" />
-              <div className="space-y-2">
-                {collabTracks.map((track) => (
-                  <div key={track.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-background/50">
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="w-8 h-8 rounded-full flex-shrink-0"
-                      onClick={() => toggleCollabTrack(track.id, track.audioUrl)}
-                    >
-                      {collabPlayingId === track.id
-                        ? <Pause className="w-3.5 h-3.5" />
-                        : <Play className="w-3.5 h-3.5 translate-x-[1px]" />}
-                    </Button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{track.authorName || "Anonymous"}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{track.duration ? `${Math.floor(track.duration / 60)}:${Math.floor(track.duration % 60).toString().padStart(2, "0")}` : "--:--"}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
         </div>
       </div>
     </div>

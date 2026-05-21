@@ -32,18 +32,6 @@ export interface Song {
      * @nullable
      */
   waveformData?: number[] | null;
-  /** Whether this song is listed on the open sessions board */
-  isPublic: boolean;
-  /**
-     * What kind of collaboration the artist is looking for
-     * @nullable
-     */
-  seekingHelp?: string | null;
-  /**
-     * Share token for collaboration link
-     * @nullable
-     */
-  shareToken?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,106 +50,11 @@ export interface SongUpdate {
   tags?: string;
 }
 
-export interface PublishInput {
-  isPublic: boolean;
-  /** What kind of help the artist is looking for (e.g. "lead guitar", "vocals") */
-  seekingHelp?: string;
-}
-
-export interface ShareResult {
-  shareToken: string;
-  shareUrl: string;
-}
-
-export interface Session {
-  id: number;
-  title: string;
-  hasAudio: boolean;
-  isPublic: boolean;
-  /** @nullable */
-  seekingHelp?: string | null;
-  /** @nullable */
-  duration?: number | null;
-  /** Number of collaboration tracks submitted */
-  collabCount: number;
-  shareToken: string;
-  /** @nullable */
-  audioUrl?: string | null;
-  createdAt: string;
-}
-
-export interface CollabSong {
-  id: number;
-  title: string;
-  /** @nullable */
-  seekingHelp?: string | null;
-  hasAudio: boolean;
-  /** @nullable */
-  duration: number | null;
-  /** @nullable */
-  audioUrl: string | null;
-}
-
-export interface CollabTrack {
-  id: number;
-  /** @nullable */
-  authorName?: string | null;
-  audioUrl: string;
-  /** @nullable */
-  duration?: number | null;
-  createdAt: string;
-}
-
 export interface SongStats {
   totalSongs: number;
   /** Total duration of all songs in seconds */
   totalDuration: number;
   songsWithAudio: number;
   recentSongs: Song[];
-  /** Collaboration tracks submitted to your songs in the last 7 days */
-  recentCollabs: number;
-}
-
-export type CommunityPostVisibility = typeof CommunityPostVisibility[keyof typeof CommunityPostVisibility];
-
-
-export const CommunityPostVisibility = {
-  public: 'public',
-  friends: 'friends',
-} as const;
-
-export interface CommunityPost {
-  id: number;
-  songId: number;
-  userId: string;
-  /** @nullable */
-  displayName?: string | null;
-  /** @nullable */
-  note?: string | null;
-  visibility: CommunityPostVisibility;
-  /** @nullable */
-  listenToken?: string | null;
-  title: string;
-  hasAudio: boolean;
-  /** @nullable */
-  duration?: number | null;
-  /** @nullable */
-  audioUrl?: string | null;
-  createdAt: string;
-}
-
-export type CommunityPostInputVisibility = typeof CommunityPostInputVisibility[keyof typeof CommunityPostInputVisibility];
-
-
-export const CommunityPostInputVisibility = {
-  public: 'public',
-  friends: 'friends',
-} as const;
-
-export interface CommunityPostInput {
-  songId: number;
-  displayName?: string;
-  note?: string;
-  visibility: CommunityPostInputVisibility;
 }
 

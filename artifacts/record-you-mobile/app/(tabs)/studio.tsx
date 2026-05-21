@@ -1,9 +1,7 @@
-import { Mic, Pause, Play, RotateCcw, Save, Square } from "lucide-react-native";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
-import { useAuth } from "@clerk/expo";
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import Animated, { useSharedValue, withRepeat, withTiming, useAnimatedStyle, Easing } from "react-native-reanimated";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -33,23 +31,14 @@ function formatTime(s: number): string {
   return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
-const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higgi1111.replit.app";
-
 export default function StudioScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const createSong = useCreateSong();
-  const { getToken } = useAuth();
 
   const [state, setState] = useState<RecordingState>("idle");
   const [elapsed, setElapsed] = useState(0);
-  const pulseAnim = useSharedValue(1);
-
-  const pulseStyle = useAnimatedStyle(() => ({
-    opacity: pulseAnim.value,
-    transform: [{ scale: pulseAnim.value }],
-  }));
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [notes, setNotes] = useState("");
@@ -59,18 +48,6 @@ export default function StudioScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingUriRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (state === "recording") {
-      pulseAnim.value = withRepeat(
-        withTiming(0.4, { duration: 600, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-    } else {
-      pulseAnim.value = withTiming(1, { duration: 200 });
-    }
-  }, [state]);
 
   useEffect(() => {
     return () => {
@@ -176,27 +153,22 @@ export default function StudioScreen() {
       });
 
       const formData = new FormData();
+      const filename = "recording." + (Platform.OS === "ios" ? "m4a" : "webm");
+      const mimeType = Platform.OS === "ios" ? "audio/m4a" : "audio/webm";
+
       formData.append("audio", {
         uri: recordingUriRef.current,
-        name: "recording.m4a",
-        type: "audio/m4a",
+        name: filename,
+        type: mimeType,
       } as any);
       formData.append("duration", elapsed.toString());
 
-      const token = await getToken();
-      const uploadRes = await fetch(
-        `https://${API_DOMAIN}/api/songs/${song.id}/audio`,
-        {
-          method: "POST",
-          body: formData,
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
-      );
+      const uploadRes = await fetch(`/api/songs/${song.id}/audio`, {
+        method: "POST",
+        body: formData,
+      });
 
-      if (!uploadRes.ok) {
-        const body = await uploadRes.text().catch(() => "");
-        throw new Error(`Upload ${uploadRes.status}: ${body.slice(0, 200) || uploadRes.statusText}`);
-      }
+      if (!uploadRes.ok) throw new Error("Upload failed");
 
       queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
 
@@ -204,9 +176,8 @@ export default function StudioScreen() {
       setTimeout(() => setSavedMsg(false), 2500);
       handleDiscard();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err: any) {
-      const msg = err?.message || err?.toString?.() || "Unknown error";
-      Alert.alert("Save failed", msg);
+    } catch {
+      Alert.alert("Save failed", "Something went wrong. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -354,8 +325,8 @@ export default function StudioScreen() {
       ? colors.primary
       : colors.primary;
 
-  const RecIcon =
-    state === "recording" ? Pause : state === "paused" ? Play : Mic;
+  const recIcon =
+    state === "recording" ? "pause" : state === "paused" ? "play" : "mic";
 
   return (
     <KeyboardAvoidingView
@@ -379,35 +350,22 @@ export default function StudioScreen() {
         )}
 
         <View style={styles.timerBox}>
-          {state === "recording" && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Animated.View
-                style={[
-                  { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.destructive },
-                  pulseStyle,
-                ]}
-              />
-              <Text style={[styles.statusText, { color: colors.destructive, marginTop: 0 }]}>
-                RECORDING
-              </Text>
-            </View>
-          )}
           <Text style={styles.timer}>{formatTime(elapsed)}</Text>
-          {state !== "recording" && (
-            <Text style={styles.statusText}>
-              {state === "idle"
-                ? "Ready to record"
-                : state === "paused"
-                ? "Paused"
-                : "Recording done"}
-            </Text>
-          )}
+          <Text style={styles.statusText}>
+            {state === "idle"
+              ? "Ready to record"
+              : state === "recording"
+              ? "Recording..."
+              : state === "paused"
+              ? "Paused"
+              : "Recording done"}
+          </Text>
         </View>
 
         <View style={styles.controlRow}>
           {(state === "recording" || state === "paused") && (
             <Pressable style={styles.secondaryBtn} onPress={handleStop}>
-              <Square size={22} color={colors.destructive} />
+              <Feather name="square" size={22} color={colors.destructive} />
             </Pressable>
           )}
           <Pressable
@@ -415,11 +373,11 @@ export default function StudioScreen() {
             style={[styles.recBtn, { backgroundColor: recColor }]}
             onPress={handleRecord}
           >
-            <RecIcon size={32} color="#fff" />
+            <Feather name={recIcon} size={32} color="#fff" />
           </Pressable>
           {state === "done" && (
             <Pressable style={styles.secondaryBtn} onPress={handleDiscard}>
-              <RotateCcw size={20} color={colors.mutedForeground} />
+              <Feather name="refresh-ccw" size={20} color={colors.mutedForeground} />
             </Pressable>
           )}
         </View>
@@ -475,7 +433,7 @@ export default function StudioScreen() {
                 {isSaving ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Save size={18} color="#fff" />
+                  <Feather name="save" size={18} color="#fff" />
                 )}
                 <Text style={styles.saveBtnText}>
                   {isSaving ? "Saving..." : "Save Track"}

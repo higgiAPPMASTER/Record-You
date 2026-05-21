@@ -29,9 +29,6 @@ export const ListSongsResponseItem = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
-  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
-  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
-  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -67,108 +64,10 @@ export const GetSongStatsResponse = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
-  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
-  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
-  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})),
-  "recentCollabs": zod.number().describe('Collaboration tracks submitted to your songs in the last 7 days')
+}))
 })
-
-
-/**
- * @summary Generate or retrieve a share token for a song
- */
-export const ShareSongParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const ShareSongResponse = zod.object({
-  "shareToken": zod.string(),
-  "shareUrl": zod.string()
-})
-
-
-/**
- * @summary Toggle a song's public visibility on the open sessions board
- */
-export const PublishSongParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const PublishSongBody = zod.object({
-  "isPublic": zod.boolean(),
-  "seekingHelp": zod.string().optional().describe('What kind of help the artist is looking for (e.g. \"lead guitar\", \"vocals\")')
-})
-
-export const PublishSongResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "notes": zod.string().nullish(),
-  "tags": zod.string().nullish(),
-  "duration": zod.number().nullish().describe('Duration in seconds'),
-  "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
-  "hasAudio": zod.boolean(),
-  "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
-  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
-  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
-  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
-
-/**
- * @summary List all public open sessions
- */
-export const ListSessionsResponseItem = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "hasAudio": zod.boolean(),
-  "isPublic": zod.boolean(),
-  "seekingHelp": zod.string().nullish(),
-  "duration": zod.number().nullish(),
-  "collabCount": zod.number().describe('Number of collaboration tracks submitted'),
-  "shareToken": zod.string(),
-  "audioUrl": zod.string().nullish(),
-  "createdAt": zod.coerce.date()
-})
-export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
-
-
-/**
- * @summary Get song info by share token (public)
- */
-export const GetCollabSongParams = zod.object({
-  "token": zod.coerce.string()
-})
-
-export const GetCollabSongResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "seekingHelp": zod.string().nullish(),
-  "hasAudio": zod.boolean(),
-  "duration": zod.number().nullable(),
-  "audioUrl": zod.string().nullable()
-})
-
-
-/**
- * @summary List collaboration tracks for a shared song
- */
-export const ListCollabTracksParams = zod.object({
-  "token": zod.coerce.string()
-})
-
-export const ListCollabTracksResponseItem = zod.object({
-  "id": zod.number(),
-  "authorName": zod.string().nullish(),
-  "audioUrl": zod.string(),
-  "duration": zod.number().nullish(),
-  "createdAt": zod.coerce.date()
-})
-export const ListCollabTracksResponse = zod.array(ListCollabTracksResponseItem)
 
 
 /**
@@ -187,9 +86,6 @@ export const GetSongResponse = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
-  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
-  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
-  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -220,9 +116,6 @@ export const UpdateSongResponse = zod.object({
   "audioUrl": zod.string().nullish().describe('URL to stream the audio file'),
   "hasAudio": zod.boolean(),
   "waveformData": zod.array(zod.number()).nullish().describe('Amplitude peak values (0–1) for waveform visualization'),
-  "isPublic": zod.boolean().describe('Whether this song is listed on the open sessions board'),
-  "seekingHelp": zod.string().nullish().describe('What kind of collaboration the artist is looking for'),
-  "shareToken": zod.string().nullish().describe('Share token for collaboration link'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -233,88 +126,6 @@ export const UpdateSongResponse = zod.object({
  */
 export const DeleteSongParams = zod.object({
   "id": zod.coerce.number()
-})
-
-
-/**
- * @summary List all public community posts
- */
-export const ListCommunityPostsResponseItem = zod.object({
-  "id": zod.number(),
-  "songId": zod.number(),
-  "userId": zod.string(),
-  "displayName": zod.string().nullish(),
-  "note": zod.string().nullish(),
-  "visibility": zod.enum(['public', 'friends']),
-  "listenToken": zod.string().nullish(),
-  "title": zod.string(),
-  "hasAudio": zod.boolean(),
-  "duration": zod.number().nullish(),
-  "audioUrl": zod.string().nullish(),
-  "createdAt": zod.coerce.date()
-})
-export const ListCommunityPostsResponse = zod.array(ListCommunityPostsResponseItem)
-
-
-/**
- * @summary Share a recording to the community (auth required)
- */
-export const CreateCommunityPostBody = zod.object({
-  "songId": zod.number(),
-  "displayName": zod.string().optional(),
-  "note": zod.string().optional(),
-  "visibility": zod.enum(['public', 'friends'])
-})
-
-
-/**
- * @summary List your own community posts (auth required)
- */
-export const ListMyCommunityPostsResponseItem = zod.object({
-  "id": zod.number(),
-  "songId": zod.number(),
-  "userId": zod.string(),
-  "displayName": zod.string().nullish(),
-  "note": zod.string().nullish(),
-  "visibility": zod.enum(['public', 'friends']),
-  "listenToken": zod.string().nullish(),
-  "title": zod.string(),
-  "hasAudio": zod.boolean(),
-  "duration": zod.number().nullish(),
-  "audioUrl": zod.string().nullish(),
-  "createdAt": zod.coerce.date()
-})
-export const ListMyCommunityPostsResponse = zod.array(ListMyCommunityPostsResponseItem)
-
-
-/**
- * @summary Delete your own community post (auth required)
- */
-export const DeleteCommunityPostParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-
-/**
- * @summary Get a friends-only listen post by token (no auth required)
- */
-export const GetListenPostParams = zod.object({
-  "token": zod.coerce.string()
-})
-
-export const GetListenPostResponse = zod.object({
-  "id": zod.number(),
-  "songId": zod.number(),
-  "userId": zod.string(),
-  "displayName": zod.string().nullish(),
-  "note": zod.string().nullish(),
-  "visibility": zod.enum(['public', 'friends']),
-  "listenToken": zod.string().nullish(),
-  "title": zod.string(),
-  "hasAudio": zod.boolean(),
-  "duration": zod.number().nullish(),
-  "audioUrl": zod.string().nullish(),
-  "createdAt": zod.coerce.date()
 })
 
 

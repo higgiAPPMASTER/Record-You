@@ -29,18 +29,6 @@ export interface Song {
      * @nullable
      */
   waveformData?: number[] | null;
-  /** Whether this song is listed on the open sessions board */
-  isPublic: boolean;
-  /**
-     * What kind of collaboration the artist is looking for
-     * @nullable
-     */
-  seekingHelp?: string | null;
-  /**
-     * Share token for collaboration link
-     * @nullable
-     */
-  shareToken?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

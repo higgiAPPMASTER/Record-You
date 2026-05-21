@@ -1,4 +1,4 @@
-import { ArrowLeft, Save, Trash2, Pause, Play } from "lucide-react-native";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -56,7 +56,6 @@ export default function SongDetailScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
 
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -93,19 +92,14 @@ export default function SongDetailScreen() {
 
     try {
       setIsLoadingAudio(true);
-      const fullUrl =
-        song.audioUrl.startsWith("http")
-          ? song.audioUrl
-          : `https://${process.env.EXPO_PUBLIC_DOMAIN}${song.audioUrl}`;
       const { sound } = await Audio.Sound.createAsync(
-        { uri: fullUrl },
+        { uri: song.audioUrl },
         { shouldPlay: true }
       );
       soundRef.current = sound;
       setIsPlaying(true);
       setIsLoadingAudio(false);
 
-      await sound.setRateAsync(playbackSpeed, true);
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded) {
           setCurrentTime(status.positionMillis / 1000);
@@ -140,14 +134,6 @@ export default function SongDetailScreen() {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleSpeedChange = async (speed: number) => {
-    setPlaybackSpeed(speed);
-    if (soundRef.current) {
-      await soundRef.current.setRateAsync(speed, true);
-    }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleDelete = () => {
@@ -248,32 +234,6 @@ export default function SongDetailScreen() {
       color: colors.mutedForeground,
       fontFamily: "Inter_400Regular",
     },
-    speedRow: {
-      flexDirection: "row" as const,
-      justifyContent: "center" as const,
-      gap: 8,
-      marginTop: 14,
-    },
-    speedBtn: {
-      paddingHorizontal: 12,
-      paddingVertical: 5,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    speedBtnActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    speedBtnText: {
-      fontSize: 12,
-      color: colors.mutedForeground,
-      fontFamily: "Inter_600SemiBold",
-      fontWeight: "600" as const,
-    },
-    speedBtnTextActive: {
-      color: "#000",
-    },
     card: {
       backgroundColor: colors.card,
       borderRadius: colors.radius,
@@ -343,13 +303,13 @@ export default function SongDetailScreen() {
     >
       <View style={styles.topBar}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={styles.topBarTitle} numberOfLines={1}>
           {song.title}
         </Text>
         <Pressable style={styles.deleteBtn} onPress={handleDelete}>
-          <Trash2 size={20} color={colors.destructive} />
+          <Feather name="trash-2" size={20} color={colors.destructive} />
         </Pressable>
       </View>
 
@@ -364,10 +324,12 @@ export default function SongDetailScreen() {
               <Pressable style={styles.playBtn} onPress={handlePlayPause}>
                 {isLoadingAudio ? (
                   <ActivityIndicator color="#fff" size="small" />
-                ) : isPlaying ? (
-                  <Pause size={28} color="#fff" />
                 ) : (
-                  <Play size={28} color="#fff" />
+                  <Feather
+                    name={isPlaying ? "pause" : "play"}
+                    size={28}
+                    color="#fff"
+                  />
                 )}
               </Pressable>
               <View style={styles.durationRow}>
@@ -378,19 +340,6 @@ export default function SongDetailScreen() {
                 <Text style={[styles.timeText, { textAlign: "right" as const }]}>
                   {formatDuration(duration)}
                 </Text>
-              </View>
-              <View style={styles.speedRow}>
-                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
-                  <Pressable
-                    key={s}
-                    style={[styles.speedBtn, playbackSpeed === s && styles.speedBtnActive]}
-                    onPress={() => handleSpeedChange(s)}
-                  >
-                    <Text style={[styles.speedBtnText, playbackSpeed === s && styles.speedBtnTextActive]}>
-                      {s}×
-                    </Text>
-                  </Pressable>
-                ))}
               </View>
             </>
           ) : (
@@ -441,7 +390,7 @@ export default function SongDetailScreen() {
           {isSaving ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Save size={18} color="#fff" />
+            <Feather name="save" size={18} color="#fff" />
           )}
           <Text style={styles.saveBtnText}>
             {isSaving ? "Saving..." : "Save Changes"}

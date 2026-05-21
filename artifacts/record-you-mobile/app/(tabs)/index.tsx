@@ -1,6 +1,4 @@
-import { Mic, Pause, Play, Trash2 } from "lucide-react-native";
-
-const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higgi1111.replit.app";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -68,13 +66,8 @@ export default function LibraryScreen() {
       }
       setPlayingId(null);
 
-      const fullUrl =
-        audioUrl.startsWith("http")
-          ? audioUrl
-          : `https://${API_DOMAIN}${audioUrl}`;
-
       const { sound } = await Audio.Sound.createAsync(
-        { uri: fullUrl },
+        { uri: audioUrl },
         { shouldPlay: true }
       );
       soundRef.current = sound;
@@ -233,37 +226,14 @@ export default function LibraryScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View>
-            <Text style={styles.headerTitle}>Library</Text>
-            <Text style={styles.headerSub}>
-              {songs.length} track{songs.length !== 1 ? "s" : ""}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => router.push("/studio")}
-            style={{
-              backgroundColor: colors.primary,
-              borderRadius: 20,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <Mic size={14} color="#000" />
-            <Text style={{ color: "#000", fontWeight: "700", fontSize: 13, fontFamily: "Inter_700Bold" }}>
-              New Recording
-            </Text>
-          </Pressable>
-        </View>
+        <Text style={styles.headerTitle}>Library</Text>
+        <Text style={styles.headerSub}>Your recordings</Text>
       </View>
 
       {songs.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIcon}>
-            <Mic size={32} color={colors.primary} />
+            <Feather name="mic" size={32} color={colors.primary} />
           </View>
           <Text style={styles.emptyTitle}>No tracks yet</Text>
           <Text style={styles.emptyText}>
@@ -314,12 +284,11 @@ export default function LibraryScreen() {
                         size="small"
                         color={isPlaying ? "#fff" : colors.primary}
                       />
-                    ) : isPlaying ? (
-                      <Pause size={22} color="#fff" />
                     ) : (
-                      <Play
+                      <Feather
+                        name={isPlaying ? "pause" : "play"}
                         size={22}
-                        color={item.hasAudio ? colors.primary : colors.mutedForeground}
+                        color={isPlaying ? "#fff" : item.hasAudio ? colors.primary : colors.mutedForeground}
                       />
                     )}
                   </Pressable>
@@ -350,7 +319,7 @@ export default function LibraryScreen() {
                         handleDelete(item.id, item.title);
                       }}
                     >
-                      <Trash2 size={18} color={colors.destructive} />
+                      <Feather name="trash-2" size={18} color={colors.destructive} />
                     </Pressable>
                   </View>
                 </View>

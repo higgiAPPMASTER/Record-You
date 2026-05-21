@@ -1,4 +1,3 @@
-@layer theme, base, clerk, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -66,106 +65,104 @@
 }
 
 :root {
-  --button-outline: rgba(0,0,0, .12);
-  --badge-outline: rgba(0,0,0, .06);
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  /* Pittsburgh Pirates — light: gold on near-white */
-  --background: 43 25% 97%;
-  --foreground: 0 0% 8%;
-  --border: 43 20% 88%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 8%;
-  --card-border: 43 20% 88%;
-
-  --sidebar: 43 15% 93%;
-  --sidebar-foreground: 0 0% 15%;
-  --sidebar-border: 43 15% 84%;
-  --sidebar-primary: 43 97% 47%;
-  --sidebar-primary-foreground: 0 0% 0%;
-  --sidebar-accent: 43 20% 87%;
-  --sidebar-accent-foreground: 0 0% 8%;
-  --sidebar-ring: 43 97% 47%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 8%;
-  --popover-border: 43 20% 88%;
-
-  /* Pirates gold: #FDB827 ≈ hsl(43 97% 57%) */
-  --primary: 43 97% 47%;
-  --primary-foreground: 0 0% 0%;
-
-  --secondary: 43 15% 88%;
-  --secondary-foreground: 0 0% 10%;
-
-  --muted: 43 12% 91%;
-  --muted-foreground: 0 0% 42%;
-
-  --accent: 43 20% 87%;
-  --accent-foreground: 0 0% 8%;
-
+  /* Warm light theme */
+  --background: 30 20% 98%;
+  --foreground: 20 15% 15%;
+  --border: 30 15% 90%;
+  --card: 30 20% 100%;
+  --card-foreground: 20 15% 15%;
+  --card-border: 30 15% 90%;
+  
+  --sidebar: 30 20% 95%;
+  --sidebar-foreground: 20 15% 25%;
+  --sidebar-border: 30 15% 85%;
+  --sidebar-primary: 24 95% 53%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 30 20% 90%;
+  --sidebar-accent-foreground: 20 15% 15%;
+  --sidebar-ring: 24 95% 53%;
+  
+  --popover: 30 20% 100%;
+  --popover-foreground: 20 15% 15%;
+  --popover-border: 30 15% 90%;
+  
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 30 15% 90%;
+  --secondary-foreground: 20 15% 20%;
+  
+  --muted: 30 15% 92%;
+  --muted-foreground: 20 10% 45%;
+  
+  --accent: 30 20% 90%;
+  --accent-foreground: 20 15% 15%;
+  
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-
-  --input: 43 15% 84%;
-  --ring: 43 97% 47%;
-
+  
+  --input: 30 15% 85%;
+  --ring: 24 95% 53%;
+  
   --app-font-sans: 'Outfit', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'Space Mono', monospace;
-
+  
   --radius: 0.75rem;
 }
 
 .dark {
-  --button-outline: rgba(255,255,255, .08);
-  --badge-outline: rgba(255,255,255, .04);
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255,255,255, .03);
-  --elevate-2: rgba(255,255,255, .07);
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
 
-  /* Pittsburgh Pirates — dark: gold on black */
-  --background: 0 0% 5%;
-  --foreground: 43 15% 92%;
-  --border: 0 0% 16%;
-
-  --card: 0 0% 8%;
-  --card-foreground: 43 15% 92%;
-  --card-border: 0 0% 18%;
-
-  --sidebar: 0 0% 6%;
-  --sidebar-foreground: 43 10% 72%;
-  --sidebar-border: 0 0% 14%;
-  --sidebar-primary: 43 97% 52%;
-  --sidebar-primary-foreground: 0 0% 0%;
-  --sidebar-accent: 0 0% 13%;
-  --sidebar-accent-foreground: 43 15% 92%;
-  --sidebar-ring: 43 97% 52%;
-
-  --popover: 0 0% 8%;
-  --popover-foreground: 43 15% 92%;
-  --popover-border: 0 0% 18%;
-
-  /* Pirates gold: #FDB827 */
-  --primary: 43 97% 52%;
-  --primary-foreground: 0 0% 0%;
-
-  --secondary: 0 0% 16%;
-  --secondary-foreground: 43 15% 92%;
-
-  --muted: 0 0% 13%;
-  --muted-foreground: 0 0% 55%;
-
-  --accent: 0 0% 14%;
-  --accent-foreground: 43 15% 92%;
-
+  /* Deep warm dark theme (late-night studio) */
+  --background: 24 15% 10%;
+  --foreground: 30 20% 90%;
+  --border: 24 15% 20%;
+  
+  --card: 24 15% 13%;
+  --card-foreground: 30 20% 90%;
+  --card-border: 24 15% 22%;
+  
+  --sidebar: 24 15% 11%;
+  --sidebar-foreground: 30 15% 75%;
+  --sidebar-border: 24 15% 18%;
+  --sidebar-primary: 24 95% 55%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 24 15% 18%;
+  --sidebar-accent-foreground: 30 20% 90%;
+  --sidebar-ring: 24 95% 55%;
+  
+  --popover: 24 15% 13%;
+  --popover-foreground: 30 20% 90%;
+  --popover-border: 24 15% 22%;
+  
+  --primary: 24 95% 55%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 24 15% 22%;
+  --secondary-foreground: 30 20% 90%;
+  
+  --muted: 24 15% 18%;
+  --muted-foreground: 30 10% 60%;
+  
+  --accent: 24 15% 20%;
+  --accent-foreground: 30 20% 90%;
+  
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-
-  --input: 0 0% 16%;
-  --ring: 43 97% 52%;
+  
+  --input: 24 15% 22%;
+  --ring: 24 95% 55%;
 }
 
 @layer base {

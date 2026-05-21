@@ -1,38 +1,26 @@
 {
   "expo": {
-    "name": "Record You",
+    "name": "Record You Mobile",
     "slug": "record-you-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "record-you-mobile",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#080808"
+      "backgroundColor": "#1a1714"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.recordyou.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Record You needs microphone access to record your music.",
-        "ITSAppUsesNonExemptEncryption": false
+        "NSMicrophoneUsageDescription": "Record You needs microphone access to record your music."
       }
     },
     "android": {
-      "package": "com.recordyou.app",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#080808"
-      },
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
+      "permissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -45,28 +33,11 @@
         }
       ],
       "expo-font",
-      "expo-web-browser",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "packagingOptions": {
-              "pickFirst": [
-                "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
-              ]
-            }
-          }
-        }
-      ]
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": "3a22dc20-da8f-4409-af6a-595250962eb0"
-      }
     }
   }
 }

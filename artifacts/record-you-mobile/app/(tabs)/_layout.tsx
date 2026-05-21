@@ -1,14 +1,12 @@
-import { useAuth } from "@clerk/expo";
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Redirect, Tabs } from "expo-router";
+import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Globe, LayoutGrid, List, Mic, Music2, Users } from "lucide-react-native";
-import React, { useEffect } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import React from "react";
+import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -23,21 +21,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "mic", selected: "mic.fill" }} />
         <Label>Studio</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="sessions">
-        <Icon sf={{ default: "person.2.wave.2", selected: "person.2.wave.2.fill" }} />
-        <Label>Sessions</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="community">
-        <Icon sf={{ default: "person.3", selected: "person.3.fill" }} />
-        <Label>Community</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="tuner">
-        <Icon sf={{ default: "tuningfork", selected: "tuningfork" }} />
-        <Label>Tuner</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="tools">
-        <Icon sf={{ default: "square.grid.2x2", selected: "square.grid.2x2.fill" }} />
-        <Label>Tools</Label>
+      <NativeTabs.Trigger name="metronome">
+        <Icon sf={{ default: "metronome", selected: "metronome.fill" }} />
+        <Label>Metronome</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -45,7 +31,9 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
+  const colorScheme = useColorScheme();
   const safeAreaInsets = useSafeAreaInsets();
+  const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -68,7 +56,7 @@ function ClassicTabLayout() {
           isIOS ? (
             <BlurView
               intensity={100}
-              tint="dark"
+              tint={isDark ? "dark" : "light"}
               style={StyleSheet.absoluteFill}
             />
           ) : isWeb ? (
@@ -89,7 +77,7 @@ function ClassicTabLayout() {
             isIOS ? (
               <SymbolView name="waveform" tintColor={color} size={24} />
             ) : (
-              <List size={22} color={color} />
+              <Feather name="list" size={22} color={color} />
             ),
         }}
       />
@@ -101,62 +89,20 @@ function ClassicTabLayout() {
             isIOS ? (
               <SymbolView name="mic.fill" tintColor={color} size={24} />
             ) : (
-              <Mic size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="sessions"
-        options={{
-          title: "Sessions",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.2.wave.2" tintColor={color} size={24} />
-            ) : (
-              <Globe size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="community"
-        options={{
-          title: "Community",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.3" tintColor={color} size={24} />
-            ) : (
-              <Users size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="tuner"
-        options={{
-          title: "Tuner",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="tuningfork" tintColor={color} size={24} />
-            ) : (
-              <Music2 size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="tools"
-        options={{
-          title: "Tools",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="square.grid.2x2" tintColor={color} size={24} />
-            ) : (
-              <LayoutGrid size={22} color={color} />
+              <Feather name="mic" size={22} color={color} />
             ),
         }}
       />
       <Tabs.Screen
         name="metronome"
         options={{
-          href: null,
+          title: "Metronome",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="metronome" tintColor={color} size={24} />
+            ) : (
+              <Feather name="clock" size={22} color={color} />
+            ),
         }}
       />
     </Tabs>
@@ -164,14 +110,6 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  const { isSignedIn, getToken } = useAuth();
-
-  useEffect(() => {
-    setAuthTokenGetter(() => getToken());
-  }, [getToken]);
-
-  if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
-
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }
