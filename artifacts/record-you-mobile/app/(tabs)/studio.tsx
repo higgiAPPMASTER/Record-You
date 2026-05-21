@@ -15,14 +15,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { useColors } from "@/hooks/useColors";
-import {
-  useCreateSong,
-  getListSongsQueryKey,
-} from "@workspace/api-client-react";
-import { copyRecordingToDevice } from "@/lib/recordings";
+import { saveLocalSong } from "@/lib/recordings";
 
 type RecordingState = "idle" | "recording" | "paused" | "done";
 
@@ -35,8 +30,6 @@ function formatTime(s: number): string {
 export default function StudioScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
-  const createSong = useCreateSong();
 
   const [state, setState] = useState<RecordingState>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -163,33 +156,15 @@ export default function StudioScreen() {
 
     setIsSaving(true);
     try {
-      const song = await createSong.mutateAsync({
-        data: { title: title.trim(), tags: tags.trim(), notes: notes.trim() },
-      });
-
-      const filename = "recording." + (Platform.OS === "ios" ? "m4a" : "webm");
       const mimeType = Platform.OS === "ios" ? "audio/m4a" : "audio/webm";
-
-      // 1. Save to device immediately (offline-safe, fast playback later)
-      await copyRecordingToDevice(recordingUriRef.current, song.id, mimeType);
-
-      // 2. Back up to cloud so the song is available cross-device
-      const formData = new FormData();
-      formData.append("audio", {
-        uri: recordingUriRef.current,
-        name: filename,
-        type: mimeType,
-      } as any);
-      formData.append("duration", elapsed.toString());
-
-      const uploadRes = await fetch(`/api/songs/${song.id}/audio`, {
-        method: "POST",
-        body: formData,
+      await saveLocalSong({
+        title: title.trim(),
+        tags: tags.trim(),
+        notes: notes.trim(),
+        duration: elapsed,
+        sourceUri: recordingUriRef.current,
+        mimeType,
       });
-
-      if (!uploadRes.ok) throw new Error("Upload failed");
-
-      queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
 
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);

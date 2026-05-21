@@ -2,30 +2,34 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
-const LOCAL_MAP_KEY = "ry:local-recordings";
+const SONGS_KEY = "ry:local-songs";
 
-export interface LocalRecording {
-  songId: number;
+export interface LocalSong {
+  id: string;
+  title: string;
+  tags: string;
+  notes: string;
+  duration: number;
   uri: string;
   mimeType: string;
   filename: string;
   bytes: number;
   createdAt: number;
+  updatedAt: number;
+  cloudId: number | null;
 }
 
-type LocalMap = Record<string, LocalRecording>;
-
-async function readMap(): Promise<LocalMap> {
+async function readSongs(): Promise<LocalSong[]> {
   try {
-    const raw = await AsyncStorage.getItem(LOCAL_MAP_KEY);
-    return raw ? (JSON.parse(raw) as LocalMap) : {};
+    const raw = await AsyncStorage.getItem(SONGS_KEY);
+    return raw ? (JSON.parse(raw) as LocalSong[]) : [];
   } catch {
-    return {};
+    return [];
   }
 }
 
-async function writeMap(map: LocalMap): Promise<void> {
-  await AsyncStorage.setItem(LOCAL_MAP_KEY, JSON.stringify(map));
+async function writeSongs(songs: LocalSong[]): Promise<void> {
+  await AsyncStorage.setItem(SONGS_KEY, JSON.stringify(songs));
 }
 
 function getRecordingsDir(): string {
@@ -44,83 +48,92 @@ async function ensureDir(): Promise<string> {
   return dir;
 }
 
-export async function copyRecordingToDevice(
-  sourceUri: string,
-  songId: number,
-  mimeType: string
-): Promise<LocalRecording | null> {
-  if (Platform.OS === "web") return null;
+function randId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
-  const ext = mimeType.includes("m4a") || mimeType.includes("mp4") ? "m4a" : "webm";
+export async function listLocalSongs(): Promise<LocalSong[]> {
+  const songs = await readSongs();
+  return songs.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getLocalSong(id: string): Promise<LocalSong | null> {
+  const songs = await readSongs();
+  return songs.find((s) => s.id === id) ?? null;
+}
+
+export interface SaveSongInput {
+  title: string;
+  tags: string;
+  notes: string;
+  duration: number;
+  sourceUri: string;
+  mimeType: string;
+}
+
+export async function saveLocalSong(input: SaveSongInput): Promise<LocalSong> {
+  if (Platform.OS === "web") {
+    throw new Error("Local storage is not available on web");
+  }
+
+  const id = randId();
+  const ext = input.mimeType.includes("m4a") || input.mimeType.includes("mp4") ? "m4a" : "webm";
   const dir = await ensureDir();
-  const filename = `song-${songId}.${ext}`;
+  const filename = `${id}.${ext}`;
   const dest = `${dir}${filename}`;
 
-  try {
-    const existing = await FileSystem.getInfoAsync(dest);
-    if (existing.exists) {
-      await FileSystem.deleteAsync(dest, { idempotent: true });
-    }
-    await FileSystem.copyAsync({ from: sourceUri, to: dest });
+  await FileSystem.copyAsync({ from: input.sourceUri, to: dest });
 
-    const info = await FileSystem.getInfoAsync(dest);
-    const bytes = info.exists && "size" in info ? (info as { size?: number }).size ?? 0 : 0;
+  const info = await FileSystem.getInfoAsync(dest);
+  const bytes =
+    info.exists && "size" in info ? (info as { size?: number }).size ?? 0 : 0;
 
-    const record: LocalRecording = {
-      songId,
-      uri: dest,
-      mimeType,
-      filename,
-      bytes,
-      createdAt: Date.now(),
-    };
+  const now = Date.now();
+  const song: LocalSong = {
+    id,
+    title: input.title,
+    tags: input.tags,
+    notes: input.notes,
+    duration: input.duration,
+    uri: dest,
+    mimeType: input.mimeType,
+    filename,
+    bytes,
+    createdAt: now,
+    updatedAt: now,
+    cloudId: null,
+  };
 
-    const map = await readMap();
-    map[String(songId)] = record;
-    await writeMap(map);
-
-    return record;
-  } catch {
-    return null;
-  }
+  const songs = await readSongs();
+  songs.unshift(song);
+  await writeSongs(songs);
+  return song;
 }
 
-export async function getLocalRecording(
-  songId: number
-): Promise<LocalRecording | null> {
-  if (Platform.OS === "web") return null;
-  const map = await readMap();
-  const rec = map[String(songId)];
-  if (!rec) return null;
-  const info = await FileSystem.getInfoAsync(rec.uri);
-  if (!info.exists) {
-    delete map[String(songId)];
-    await writeMap(map);
-    return null;
-  }
-  return rec;
+export async function updateLocalSong(
+  id: string,
+  patch: Partial<Pick<LocalSong, "title" | "tags" | "notes" | "cloudId">>
+): Promise<LocalSong | null> {
+  const songs = await readSongs();
+  const idx = songs.findIndex((s) => s.id === id);
+  if (idx === -1) return null;
+  songs[idx] = { ...songs[idx], ...patch, updatedAt: Date.now() };
+  await writeSongs(songs);
+  return songs[idx];
 }
 
-export async function deleteLocalRecording(songId: number): Promise<void> {
-  if (Platform.OS === "web") return;
-  const map = await readMap();
-  const rec = map[String(songId)];
-  if (rec) {
-    await FileSystem.deleteAsync(rec.uri, { idempotent: true });
-    delete map[String(songId)];
-    await writeMap(map);
+export async function deleteLocalSong(id: string): Promise<void> {
+  const songs = await readSongs();
+  const song = songs.find((s) => s.id === id);
+  if (song) {
+    await FileSystem.deleteAsync(song.uri, { idempotent: true }).catch(() => {});
   }
-}
-
-export async function getAllLocalRecordings(): Promise<LocalRecording[]> {
-  if (Platform.OS === "web") return [];
-  const map = await readMap();
-  return Object.values(map).sort((a, b) => b.createdAt - a.createdAt);
+  await writeSongs(songs.filter((s) => s.id !== id));
 }
 
 export async function getLocalStorageBytes(): Promise<number> {
-  const all = await getAllLocalRecordings();
-  return all.reduce((sum, r) => sum + (r.bytes ?? 0), 0);
+  const songs = await readSongs();
+  return songs.reduce((sum, s) => sum + (s.bytes ?? 0), 0);
 }
 
 export function formatBytes(bytes: number): string {

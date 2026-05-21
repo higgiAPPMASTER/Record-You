@@ -17,17 +17,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { useColors } from "@/hooks/useColors";
 import {
-  useGetSong,
-  useUpdateSong,
-  useDeleteSong,
-  getGetSongQueryKey,
-  getListSongsQueryKey,
-} from "@workspace/api-client-react";
-import { getLocalRecording, deleteLocalRecording, formatBytes, type LocalRecording } from "@/lib/recordings";
+  getLocalSong,
+  updateLocalSong,
+  deleteLocalSong,
+  formatBytes,
+  type LocalSong,
+} from "@/lib/recordings";
 
 function formatDuration(s: number | null | undefined): string {
   if (!s) return "0:00";
@@ -38,17 +36,13 @@ function formatDuration(s: number | null | undefined): string {
 
 export default function SongDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const songId = Number(id);
+  const songId = String(id ?? "");
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const queryClient = useQueryClient();
 
-  const { data: song, isLoading } = useGetSong(songId, {
-    query: { enabled: !!songId, queryKey: getGetSongQueryKey(songId) },
-  });
-  const updateSong = useUpdateSong();
-  const deleteSong = useDeleteSong();
+  const [song, setSong] = useState<LocalSong | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
@@ -58,9 +52,16 @@ export default function SongDetailScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [localRec, setLocalRec] = useState<LocalRecording | null>(null);
 
   const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    if (!songId) return;
+    getLocalSong(songId).then((s) => {
+      setSong(s);
+      setIsLoading(false);
+    });
+  }, [songId]);
 
   useEffect(() => {
     if (song && !initialized) {
@@ -72,18 +73,13 @@ export default function SongDetailScreen() {
   }, [song, initialized]);
 
   useEffect(() => {
-    if (!songId) return;
-    getLocalRecording(songId).then(setLocalRec);
-  }, [songId]);
-
-  useEffect(() => {
     return () => {
       soundRef.current?.unloadAsync().catch(() => {});
     };
   }, []);
 
   const handlePlayPause = async () => {
-    if (!song?.audioUrl) return;
+    if (!song) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (isPlaying) {
@@ -100,9 +96,8 @@ export default function SongDetailScreen() {
 
     try {
       setIsLoadingAudio(true);
-      const playUri = localRec?.uri ?? song.audioUrl;
       const { sound } = await Audio.Sound.createAsync(
-        { uri: playUri },
+        { uri: song.uri },
         { shouldPlay: true }
       );
       soundRef.current = sound;
@@ -125,18 +120,19 @@ export default function SongDetailScreen() {
   };
 
   const handleSave = async () => {
+    if (!song) return;
     if (!title.trim()) {
       Alert.alert("Title required", "Please give this track a name.");
       return;
     }
     setIsSaving(true);
     try {
-      await updateSong.mutateAsync({
-        id: songId,
-        data: { title: title.trim(), tags: tags.trim(), notes: notes.trim() },
+      const updated = await updateLocalSong(song.id, {
+        title: title.trim(),
+        tags: tags.trim(),
+        notes: notes.trim(),
       });
-      queryClient.invalidateQueries({ queryKey: getGetSongQueryKey(songId) });
-      queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
+      if (updated) setSong(updated);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       Alert.alert("Save failed", "Please try again.");
@@ -146,13 +142,7 @@ export default function SongDetailScreen() {
   };
 
   const handleShare = async () => {
-    if (!localRec) {
-      Alert.alert(
-        "No local copy",
-        "This track was recorded on another device. Play it once to download it for sharing."
-      );
-      return;
-    }
+    if (!song) return;
     const available = await Sharing.isAvailableAsync();
     if (!available) {
       Alert.alert("Sharing not supported on this device.");
@@ -160,10 +150,10 @@ export default function SongDetailScreen() {
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await Sharing.shareAsync(localRec.uri, {
-        mimeType: localRec.mimeType,
-        dialogTitle: song?.title ?? "Share recording",
-        UTI: localRec.mimeType === "audio/m4a" ? "public.mpeg-4-audio" : undefined,
+      await Sharing.shareAsync(song.uri, {
+        mimeType: song.mimeType,
+        dialogTitle: song.title,
+        UTI: song.mimeType === "audio/m4a" ? "public.mpeg-4-audio" : undefined,
       });
     } catch {
       Alert.alert("Share failed", "Could not open the share sheet.");
@@ -171,17 +161,16 @@ export default function SongDetailScreen() {
   };
 
   const handleDelete = () => {
+    if (!song) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert("Delete Track", `Delete "${song?.title}"?`, [
+    Alert.alert("Delete Track", `Delete "${song.title}"?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
           await soundRef.current?.unloadAsync().catch(() => {});
-          await deleteSong.mutateAsync({ id: songId });
-          await deleteLocalRecording(songId);
-          queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
+          await deleteLocalSong(song.id);
           router.back();
         },
       },
@@ -196,7 +185,7 @@ export default function SongDetailScreen() {
       paddingTop: Platform.OS === "web" ? 67 : insets.top + 8,
       paddingHorizontal: 16,
       paddingBottom: 8,
-      gap: 8,
+      gap: 4,
     },
     backBtn: {
       width: 40,
@@ -212,7 +201,7 @@ export default function SongDetailScreen() {
       color: colors.foreground,
       fontFamily: "Inter_600SemiBold",
     },
-    deleteBtn: {
+    iconBtn: {
       width: 40,
       height: 40,
       borderRadius: 20,
@@ -246,6 +235,7 @@ export default function SongDetailScreen() {
       flexDirection: "row" as const,
       alignItems: "center" as const,
       gap: 8,
+      width: "100%" as const,
     },
     timeText: {
       fontSize: 13,
@@ -263,6 +253,12 @@ export default function SongDetailScreen() {
       height: 4,
       backgroundColor: colors.primary,
       borderRadius: 2,
+    },
+    storageNote: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      fontFamily: "Inter_400Regular",
+      marginTop: 12,
     },
     noAudio: {
       fontSize: 13,
@@ -343,14 +339,10 @@ export default function SongDetailScreen() {
         <Text style={styles.topBarTitle} numberOfLines={1}>
           {song.title}
         </Text>
-        <Pressable style={styles.deleteBtn} onPress={handleShare} disabled={!localRec}>
-          <Feather
-            name="share-2"
-            size={20}
-            color={localRec ? colors.primary : colors.mutedForeground}
-          />
+        <Pressable style={styles.iconBtn} onPress={handleShare}>
+          <Feather name="share-2" size={20} color={colors.primary} />
         </Pressable>
-        <Pressable style={styles.deleteBtn} onPress={handleDelete}>
+        <Pressable style={styles.iconBtn} onPress={handleDelete}>
           <Feather name="trash-2" size={20} color={colors.destructive} />
         </Pressable>
       </View>
@@ -361,37 +353,29 @@ export default function SongDetailScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.playerCard}>
-          {song.hasAudio ? (
-            <>
-              <Pressable style={styles.playBtn} onPress={handlePlayPause}>
-                {isLoadingAudio ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Feather
-                    name={isPlaying ? "pause" : "play"}
-                    size={28}
-                    color="#fff"
-                  />
-                )}
-              </Pressable>
-              <View style={styles.durationRow}>
-                <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${progress * 100}%` as any }]} />
-                </View>
-                <Text style={[styles.timeText, { textAlign: "right" as const }]}>
-                  {formatDuration(duration)}
-                </Text>
-              </View>
-              <Text style={[styles.noAudio, { marginTop: 12, fontSize: 11 }]}>
-                {localRec
-                  ? `Saved on device · ${formatBytes(localRec.bytes)}`
-                  : "Streaming from cloud · play to cache"}
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.noAudio}>No audio recorded for this track.</Text>
-          )}
+          <Pressable style={styles.playBtn} onPress={handlePlayPause}>
+            {isLoadingAudio ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Feather
+                name={isPlaying ? "pause" : "play"}
+                size={28}
+                color="#fff"
+              />
+            )}
+          </Pressable>
+          <View style={styles.durationRow}>
+            <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${progress * 100}%` as any }]} />
+            </View>
+            <Text style={[styles.timeText, { textAlign: "right" as const }]}>
+              {formatDuration(duration)}
+            </Text>
+          </View>
+          <Text style={styles.storageNote}>
+            Saved on device · {formatBytes(song.bytes)}
+          </Text>
         </View>
 
         <View style={styles.card}>

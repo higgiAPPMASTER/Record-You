@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,13 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
 
 import { useColors } from "@/hooks/useColors";
-import {
-  useListSongs,
-  useDeleteSong,
-  getListSongsQueryKey,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { getLocalRecording, deleteLocalRecording } from "@/lib/recordings";
+import { listLocalSongs, deleteLocalSong, type LocalSong } from "@/lib/recordings";
 
 function formatDuration(seconds: number | null | undefined): string {
   if (!seconds) return "--:--";
@@ -31,8 +25,8 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
+function formatDate(ms: number): string {
+  const d = new Date(ms);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
@@ -40,43 +34,56 @@ export default function LibraryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const queryClient = useQueryClient();
 
-  const { data: songs = [], isLoading, refetch, isRefetching } = useListSongs();
-  const deleteSong = useDeleteSong();
+  const [songs, setSongs] = useState<LocalSong[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefetching, setIsRefetching] = useState(false);
 
   const soundRef = useRef<Audio.Sound | null>(null);
-  const [playingId, setPlayingId] = useState<number | null>(null);
-  const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  const handlePlay = async (id: number, audioUrl: string | null | undefined) => {
-    if (!audioUrl) return;
+  const load = useCallback(async () => {
+    const list = await listLocalSongs();
+    setSongs(list);
+    setIsLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const refetch = async () => {
+    setIsRefetching(true);
+    await load();
+    setIsRefetching(false);
+  };
+
+  const handlePlay = async (song: LocalSong) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    if (playingId === id) {
+    if (playingId === song.id) {
       await soundRef.current?.pauseAsync();
       setPlayingId(null);
       return;
     }
 
     try {
-      setLoadingId(id);
+      setLoadingId(song.id);
       if (soundRef.current) {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
       setPlayingId(null);
 
-      // Prefer the local copy on device — instant, no network needed
-      const local = await getLocalRecording(id);
-      const playUri = local?.uri ?? audioUrl;
-
       const { sound } = await Audio.Sound.createAsync(
-        { uri: playUri },
+        { uri: song.uri },
         { shouldPlay: true }
       );
       soundRef.current = sound;
-      setPlayingId(id);
+      setPlayingId(song.id);
       setLoadingId(null);
 
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -90,7 +97,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const handleDelete = (id: number, title: string) => {
+  const handleDelete = (id: string, title: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert("Delete Track", `Delete "${title}"?`, [
       { text: "Cancel", style: "cancel" },
@@ -103,9 +110,8 @@ export default function LibraryScreen() {
             soundRef.current = null;
             setPlayingId(null);
           }
-          await deleteSong.mutateAsync({ id });
-          await deleteLocalRecording(id);
-          queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
+          await deleteLocalSong(id);
+          await load();
         },
       },
     ]);
@@ -233,7 +239,7 @@ export default function LibraryScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Library</Text>
-        <Text style={styles.headerSub}>Your recordings</Text>
+        <Text style={styles.headerSub}>Your recordings · saved on device</Text>
       </View>
 
       {songs.length === 0 ? (
@@ -249,14 +255,13 @@ export default function LibraryScreen() {
       ) : (
         <FlatList
           data={songs}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={[
             styles.list,
             { paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 84 },
           ]}
           onRefresh={refetch}
           refreshing={isRefetching}
-          scrollEnabled={songs.length > 0}
           renderItem={({ item }) => {
             const isPlaying = playingId === item.id;
             const isBuffering = loadingId === item.id;
@@ -274,16 +279,13 @@ export default function LibraryScreen() {
                     style={[
                       styles.playBtn,
                       {
-                        backgroundColor: isPlaying
-                          ? colors.primary
-                          : colors.muted,
+                        backgroundColor: isPlaying ? colors.primary : colors.muted,
                       },
                     ]}
                     onPress={(e) => {
                       e.stopPropagation?.();
-                      if (item.hasAudio) handlePlay(item.id, item.audioUrl);
+                      handlePlay(item);
                     }}
-                    disabled={!item.hasAudio}
                   >
                     {isBuffering ? (
                       <ActivityIndicator
@@ -294,7 +296,7 @@ export default function LibraryScreen() {
                       <Feather
                         name={isPlaying ? "pause" : "play"}
                         size={22}
-                        color={isPlaying ? "#fff" : item.hasAudio ? colors.primary : colors.mutedForeground}
+                        color={isPlaying ? "#fff" : colors.primary}
                       />
                     )}
                   </Pressable>
