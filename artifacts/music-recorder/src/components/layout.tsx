@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
-import { Mic, Library, Disc3, SlidersHorizontal, Guitar, BookOpen, Music2, Hash, Globe, Timer } from "lucide-react";
+import { Mic, Library, Disc3, SlidersHorizontal, Guitar, BookOpen, Music2, Hash, Globe, Timer, LogOut } from "lucide-react";
 import { useGetSongStats } from "@workspace/api-client-react";
+import { useClerk, useUser } from "@clerk/react";
 import {
   Tooltip,
   TooltipContent,
@@ -9,7 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 
 const navItems = [
-  { href: "/",        label: "Library",  Icon: Library },
+  { href: "/library", label: "Library",  Icon: Library },
   { href: "/record",  label: "Studio",   Icon: Mic },
   { href: "/mixer",   label: "Mixer",    Icon: SlidersHorizontal },
   { href: "/sessions",label: "Sessions", Icon: Globe },
@@ -23,6 +24,8 @@ const navItems = [
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { data: stats } = useGetSongStats();
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
   const formatDuration = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -30,13 +33,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="flex h-screen overflow-hidden bg-background dark text-foreground">
         {/* Slim icon-only sidebar */}
         <aside className="w-14 flex-shrink-0 border-r border-border bg-sidebar flex flex-col items-center py-3 gap-1">
           {/* Logo */}
-          <Link href="/" className="flex items-center justify-center w-10 h-10 mb-2">
+          <Link href="/library" className="flex items-center justify-center w-10 h-10 mb-2">
             <Disc3 className="w-6 h-6 text-primary animate-pulse-slow" />
           </Link>
 
@@ -66,7 +71,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Stats at bottom */}
+          {/* Stats + user at bottom */}
           <div className="flex flex-col items-center gap-2 pb-1 border-t border-border pt-3 w-full">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -92,6 +97,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8}>
                 {formatDuration(stats?.totalDuration ?? 0)} total recorded
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Sign out */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => signOut({ redirectUrl: basePath || "/" })}
+                  className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors mt-1"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={8}>
+                {user?.primaryEmailAddress?.emailAddress ?? "Sign out"}
               </TooltipContent>
             </Tooltip>
           </div>

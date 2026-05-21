@@ -1,12 +1,14 @@
+import { useAuth } from "@clerk/expo";
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Globe, LayoutGrid, List, Mic, Music2 } from "lucide-react-native";
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -146,6 +148,14 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
+  const { isSignedIn, getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+  }, [getToken]);
+
+  if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
+
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }
