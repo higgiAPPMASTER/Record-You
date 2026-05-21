@@ -46,9 +46,28 @@ export default function SignUpScreen() {
         setError(signUpError.message ?? "Sign up failed. Please try again.");
         return;
       }
+      const { error: sendError } = await signUp.verifications.sendEmailCode();
+      if (sendError) {
+        setError(sendError.message ?? "Could not send verification email.");
+        return;
+      }
       setPendingVerification(true);
     } catch (err: any) {
-      setError(err?.errors?.[0]?.message ?? "Sign up failed. Please try again.");
+      setError(err?.errors?.[0]?.message ?? err?.message ?? "Sign up failed. Please try again.");
+    }
+  };
+
+  const handleResend = async () => {
+    setError("");
+    try {
+      const { error: sendError } = await signUp.verifications.sendEmailCode();
+      if (sendError) {
+        setError(sendError.message ?? "Could not resend code.");
+      } else {
+        setError("New code sent. Check your inbox.");
+      }
+    } catch (err: any) {
+      setError(err?.errors?.[0]?.message ?? "Could not resend code.");
     }
   };
 
@@ -100,6 +119,9 @@ export default function SignUpScreen() {
             ) : (
               <Text style={styles.btnText}>Verify</Text>
             )}
+          </Pressable>
+          <Pressable onPress={handleResend} disabled={loading}>
+            <Text style={[styles.link, { textAlign: "center" }]}>Resend code</Text>
           </Pressable>
         </View>
       </View>
