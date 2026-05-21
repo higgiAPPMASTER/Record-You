@@ -157,7 +157,7 @@ export default function Mixer() {
     setTrack1Solo, setTrack2Solo,
     setFadeInDuration, setFadeOutDuration,
     setLoop,
-    loadTracks, play, stop, startRecording, stopRecording, reset, elapsedTime: _et,
+    loadTracks, play, stop, startRecording, stopRecording, reset,
   } = useAudioMixer();
 
   const track1 = tracks.find((t) => t.key === track1Key) ?? null;

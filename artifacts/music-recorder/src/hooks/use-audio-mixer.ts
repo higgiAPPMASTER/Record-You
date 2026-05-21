@@ -412,8 +412,22 @@ export function useAudioMixer(): UseAudioMixerResult {
     }
 
     const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-      ? "audio/webm;codecs=opus" : "audio/webm";
-    const mr = new MediaRecorder(dest.stream, { mimeType: mime });
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+      ? "audio/webm"
+      : MediaRecorder.isTypeSupported("audio/mp4")
+      ? "audio/mp4"
+      : "";
+    let mr: MediaRecorder;
+    try {
+      mr = new MediaRecorder(dest.stream, mime ? { mimeType: mime } : undefined);
+    } catch {
+      gain1.disconnect(dest);
+      gain2.disconnect(dest);
+      setError("Your browser doesn't support audio recording. Try Chrome or Firefox.");
+      setState("ready");
+      return;
+    }
     mediaRecorderRef.current = mr;
 
     const chunks: BlobPart[] = [];
