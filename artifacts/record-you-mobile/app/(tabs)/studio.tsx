@@ -44,6 +44,7 @@ export default function StudioScreen() {
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
+  const [level, setLevel] = useState(0);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -87,13 +88,24 @@ export default function StudioScreen() {
 
       const recording = new Audio.Recording();
       try {
-        await recording.prepareToRecordAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
+        await recording.prepareToRecordAsync({
+          ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+          isMeteringEnabled: true,
+        });
+        recording.setProgressUpdateInterval(80);
+        recording.setOnRecordingStatusUpdate((status) => {
+          if (status.isRecording && typeof status.metering === "number") {
+            // metering is dBFS (-160..0). Map to 0..1.
+            const db = status.metering;
+            const norm = Math.max(0, Math.min(1, (db + 60) / 60));
+            setLevel(norm);
+          }
+        });
         await recording.startAsync();
         recordingRef.current = recording;
         recordingUriRef.current = null;
         setElapsed(0);
+        setLevel(0);
         setState("recording");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         startTimer();
@@ -103,6 +115,7 @@ export default function StudioScreen() {
     } else if (state === "recording") {
       await recordingRef.current?.pauseAsync();
       stopTimer();
+      setLevel(0);
       setState("paused");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } else if (state === "paused") {
@@ -121,6 +134,7 @@ export default function StudioScreen() {
       recordingUriRef.current = uri;
       recordingRef.current = null;
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      setLevel(0);
       setState("done");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -209,6 +223,32 @@ export default function StudioScreen() {
     timerBox: {
       alignItems: "center" as const,
       paddingVertical: 32,
+    },
+    meterWrap: {
+      width: "100%" as const,
+      paddingHorizontal: 16,
+      marginBottom: 24,
+    },
+    meterTrack: {
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: colors.muted,
+      overflow: "hidden" as const,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    meterFill: {
+      height: "100%" as const,
+      borderRadius: 7,
+    },
+    meterLabel: {
+      fontSize: 10,
+      color: colors.mutedForeground,
+      textAlign: "center" as const,
+      marginTop: 6,
+      textTransform: "uppercase" as const,
+      letterSpacing: 1,
+      fontFamily: "Inter_500Medium",
     },
     timer: {
       fontSize: 56,
@@ -361,6 +401,28 @@ export default function StudioScreen() {
               : "Recording done"}
           </Text>
         </View>
+
+        {(state === "recording" || state === "paused") && (
+          <View style={styles.meterWrap}>
+            <View style={styles.meterTrack}>
+              <View
+                style={[
+                  styles.meterFill,
+                  {
+                    width: `${Math.round(level * 100)}%`,
+                    backgroundColor:
+                      level > 0.85
+                        ? colors.destructive
+                        : level > 0.5
+                        ? "#facc15"
+                        : colors.primary,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.meterLabel}>Input Level</Text>
+          </View>
+        )}
 
         <View style={styles.controlRow}>
           {(state === "recording" || state === "paused") && (
