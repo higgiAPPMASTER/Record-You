@@ -23,71 +23,34 @@ const MUTED = "#888888";
 const WHITE = "#f8f8f8";
 
 export default function SignInScreen() {
-  const { signIn, errors, fetchStatus } = useSignIn();
+  const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [verifyCode, setVerifyCode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    const { error } = await signIn.password({ emailAddress: email, password });
-    if (error) return;
-
-    if (signIn.status === "complete") {
-      await signIn.finalize({
-        navigate: ({ decorateUrl }) => {
-          const url = decorateUrl("/");
-          if (url.startsWith("http")) return;
-          router.replace("/(tabs)");
-        },
+    if (!isLoaded) return;
+    setError("");
+    setLoading(true);
+    try {
+      const result = await signIn.create({
+        identifier: email,
+        password,
       });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)");
+      }
+    } catch (err: any) {
+      setError(err?.errors?.[0]?.message ?? "Sign in failed. Check your email and password.");
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleVerify = async () => {
-    await signIn.mfa.verifyEmailCode({ code: verifyCode });
-    if (signIn.status === "complete") {
-      await signIn.finalize({
-        navigate: () => router.replace("/(tabs)"),
-      });
-    }
-  };
-
-  if (signIn.status === "needs_client_trust") {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
-        <Text style={styles.title}>Verify your identity</Text>
-        <Text style={styles.subtitle}>Enter the code sent to your email</Text>
-        <TextInput
-          style={styles.input}
-          value={verifyCode}
-          onChangeText={setVerifyCode}
-          placeholder="Verification code"
-          placeholderTextColor={MUTED}
-          keyboardType="numeric"
-        />
-        {errors?.fields?.code && (
-          <Text style={styles.error}>{errors.fields.code.message}</Text>
-        )}
-        <Pressable
-          style={[styles.btn, fetchStatus === "fetching" && styles.btnDisabled]}
-          onPress={handleVerify}
-          disabled={fetchStatus === "fetching"}
-        >
-          {fetchStatus === "fetching" ? (
-            <ActivityIndicator color={BG} />
-          ) : (
-            <Text style={styles.btnText}>Verify</Text>
-          )}
-        </Pressable>
-        <Pressable onPress={() => signIn.mfa.sendEmailCode()}>
-          <Text style={styles.link}>Resend code</Text>
-        </Pressable>
-      </View>
-    );
-  }
 
   return (
     <KeyboardAvoidingView
@@ -113,9 +76,6 @@ export default function SignInScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
           />
-          {errors?.fields?.identifier && (
-            <Text style={styles.error}>{errors.fields.identifier.message}</Text>
-          )}
 
           <Text style={[styles.label, { marginTop: 16 }]}>Password</Text>
           <TextInput
@@ -126,17 +86,16 @@ export default function SignInScreen() {
             placeholderTextColor={MUTED}
             secureTextEntry
           />
-          {errors?.fields?.password && (
-            <Text style={styles.error}>{errors.fields.password.message}</Text>
-          )}
         </View>
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <Pressable
-          style={[styles.btn, (!email || !password || fetchStatus === "fetching") && styles.btnDisabled]}
+          style={[styles.btn, (!email || !password || loading) && styles.btnDisabled]}
           onPress={handleSubmit}
-          disabled={!email || !password || fetchStatus === "fetching"}
+          disabled={!email || !password || loading}
         >
-          {fetchStatus === "fetching" ? (
+          {loading ? (
             <ActivityIndicator color={BG} />
           ) : (
             <Text style={styles.btnText}>Sign In</Text>
@@ -163,7 +122,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: CARD, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: BORDER, marginBottom: 16 },
   label: { fontSize: 12, fontWeight: "600", color: MUTED, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, fontFamily: "Inter_600SemiBold" },
   input: { backgroundColor: INPUT_BG, borderRadius: 8, borderWidth: 1, borderColor: BORDER, color: WHITE, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12, fontFamily: "Inter_400Regular" },
-  error: { color: "#ef4444", fontSize: 12, marginTop: 6, fontFamily: "Inter_400Regular" },
+  error: { color: "#ef4444", fontSize: 13, marginBottom: 12, textAlign: "center", fontFamily: "Inter_400Regular" },
   btn: { backgroundColor: GOLD, borderRadius: 10, height: 50, alignItems: "center", justifyContent: "center", marginBottom: 20 },
   btnDisabled: { opacity: 0.5 },
   btnText: { color: BG, fontSize: 16, fontWeight: "700", fontFamily: "Inter_700Bold" },

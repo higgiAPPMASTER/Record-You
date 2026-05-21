@@ -1,4 +1,4 @@
-import { useAuth, useSignUp } from "@clerk/expo";
+import { useSignUp } from "@clerk/expo";
 import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -23,41 +23,56 @@ const MUTED = "#888888";
 const WHITE = "#f8f8f8";
 
 export default function SignUpScreen() {
-  const { signUp, errors, fetchStatus } = useSignUp();
-  const { isSignedIn } = useAuth();
+  const { signUp, setActive, isLoaded } = useSignUp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    const { error } = await signUp.password({ emailAddress: email, password });
-    if (error) return;
-    await signUp.verifications.sendEmailCode();
-  };
-
-  const handleVerify = async () => {
-    await signUp.verifications.verifyEmailCode({ code });
-    if (signUp.status === "complete") {
-      await signUp.finalize({
-        navigate: () => router.replace("/(tabs)"),
-      });
+    if (!isLoaded) return;
+    setError("");
+    setLoading(true);
+    try {
+      await signUp.create({ emailAddress: email, password });
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      setPendingVerification(true);
+    } catch (err: any) {
+      setError(err?.errors?.[0]?.message ?? "Sign up failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (isSignedIn) return null;
+  const handleVerify = async () => {
+    if (!isLoaded) return;
+    setError("");
+    setLoading(true);
+    try {
+      const result = await signUp.attemptEmailAddressVerification({ code });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)");
+      }
+    } catch (err: any) {
+      setError(err?.errors?.[0]?.message ?? "Invalid code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (
-    signUp.status === "missing_requirements" &&
-    signUp.unverifiedFields.includes("email_address") &&
-    signUp.missingFields.length === 0
-  ) {
+  if (pendingVerification) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
-        <Text style={styles.title}>Verify your email</Text>
-        <Text style={styles.subtitle}>Enter the code we sent to {email}</Text>
+      <View style={[styles.container, { paddingTop: insets.top + 40 }]}>
+        <Text style={styles.logo}>📬</Text>
+        <Text style={styles.title}>Check your email</Text>
+        <Text style={styles.subtitle}>Enter the 6-digit code sent to {email}</Text>
+
         <View style={[styles.card, { marginHorizontal: 24 }]}>
           <TextInput
             style={styles.input}
@@ -66,24 +81,25 @@ export default function SignUpScreen() {
             placeholder="6-digit code"
             placeholderTextColor={MUTED}
             keyboardType="numeric"
+            autoFocus
           />
-          {errors?.fields?.code && (
-            <Text style={styles.error}>{errors.fields.code.message}</Text>
-          )}
         </View>
+
+        {error ? <Text style={[styles.error, { marginHorizontal: 24 }]}>{error}</Text> : null}
+
         <View style={{ paddingHorizontal: 24, gap: 12 }}>
           <Pressable
-            style={[styles.btn, fetchStatus === "fetching" && styles.btnDisabled]}
+            style={[styles.btn, (!code || loading) && styles.btnDisabled]}
             onPress={handleVerify}
-            disabled={fetchStatus === "fetching"}
+            disabled={!code || loading}
           >
-            {fetchStatus === "fetching" ? (
+            {loading ? (
               <ActivityIndicator color={BG} />
             ) : (
               <Text style={styles.btnText}>Verify</Text>
             )}
           </Pressable>
-          <Pressable onPress={() => signUp.verifications.sendEmailCode()}>
+          <Pressable onPress={() => signUp?.prepareEmailAddressVerification({ strategy: "email_code" })}>
             <Text style={[styles.link, { textAlign: "center" }]}>Resend code</Text>
           </Pressable>
         </View>
@@ -115,9 +131,6 @@ export default function SignUpScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
           />
-          {errors?.fields?.emailAddress && (
-            <Text style={styles.error}>{errors.fields.emailAddress.message}</Text>
-          )}
 
           <Text style={[styles.label, { marginTop: 16 }]}>Password</Text>
           <TextInput
@@ -128,17 +141,16 @@ export default function SignUpScreen() {
             placeholderTextColor={MUTED}
             secureTextEntry
           />
-          {errors?.fields?.password && (
-            <Text style={styles.error}>{errors.fields.password.message}</Text>
-          )}
         </View>
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <Pressable
-          style={[styles.btn, (!email || !password || fetchStatus === "fetching") && styles.btnDisabled]}
+          style={[styles.btn, (!email || !password || loading) && styles.btnDisabled]}
           onPress={handleSubmit}
-          disabled={!email || !password || fetchStatus === "fetching"}
+          disabled={!email || !password || loading}
         >
-          {fetchStatus === "fetching" ? (
+          {loading ? (
             <ActivityIndicator color={BG} />
           ) : (
             <Text style={styles.btnText}>Create Account</Text>
@@ -167,7 +179,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: CARD, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: BORDER, marginBottom: 16 },
   label: { fontSize: 12, fontWeight: "600", color: MUTED, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, fontFamily: "Inter_600SemiBold" },
   input: { backgroundColor: INPUT_BG, borderRadius: 8, borderWidth: 1, borderColor: BORDER, color: WHITE, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12, fontFamily: "Inter_400Regular" },
-  error: { color: "#ef4444", fontSize: 12, marginTop: 6, fontFamily: "Inter_400Regular" },
+  error: { color: "#ef4444", fontSize: 13, marginBottom: 12, textAlign: "center", fontFamily: "Inter_400Regular" },
   btn: { backgroundColor: GOLD, borderRadius: 10, height: 50, alignItems: "center", justifyContent: "center", marginBottom: 20 },
   btnDisabled: { opacity: 0.5 },
   btnText: { color: BG, fontSize: 16, fontWeight: "700", fontFamily: "Inter_700Bold" },
