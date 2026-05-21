@@ -21,8 +21,9 @@ import { setBaseUrl } from "@workspace/api-client-react";
 const domain = process.env.EXPO_PUBLIC_DOMAIN || "music-studio--higg1111.replit.app";
 setBaseUrl(`https://${domain}`);
 
-const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
-const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
+const publishableKey =
+  process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+  "pk_test_bGVnaWJsZS1zcGFycm93LTUwLmNsZXJrLmFjY291bnRzLmRldiQ";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -58,7 +59,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache} proxyUrl={proxyUrl}>
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <ClerkLoaded>
         <SafeAreaProvider>
           <ErrorBoundary>
