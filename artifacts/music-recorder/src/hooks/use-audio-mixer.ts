@@ -75,10 +75,22 @@ export function useAudioMixer(): UseAudioMixerResult {
   }, []);
 
   const fetchBuffer = async (ctx: AudioContext, url: string): Promise<AudioBuffer> => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to fetch audio: ${res.status}`);
-    const arrayBuffer = await res.arrayBuffer();
-    return ctx.decodeAudioData(arrayBuffer);
+    let arrayBuffer: ArrayBuffer;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Could not load this track (HTTP ${res.status}). Check that the song has audio recorded.`);
+      arrayBuffer = await res.arrayBuffer();
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("HTTP")) throw err;
+      throw new Error(`Could not load this track. Check your internet connection and try again.`);
+    }
+    try {
+      return await ctx.decodeAudioData(arrayBuffer);
+    } catch {
+      throw new Error(
+        `Could not decode this audio track. Your browser may not support the format (webm/opus). Try Chrome for best compatibility.`
+      );
+    }
   };
 
   const loadTracks = useCallback(async (track1: Track, track2: Track) => {
