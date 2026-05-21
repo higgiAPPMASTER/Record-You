@@ -29,8 +29,6 @@ export default function SignUpScreen() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [pendingVerification, setPendingVerification] = useState(false);
   const [error, setError] = useState("");
 
   const loading = fetchStatus === "fetching";
@@ -46,87 +44,13 @@ export default function SignUpScreen() {
         setError(signUpError.message ?? "Sign up failed. Please try again.");
         return;
       }
-      const { error: sendError } = await signUp.verifications.sendEmailCode();
-      if (sendError) {
-        setError(sendError.message ?? "Could not send verification email.");
-        return;
-      }
-      setPendingVerification(true);
-    } catch (err: any) {
-      setError(err?.errors?.[0]?.message ?? err?.message ?? "Sign up failed. Please try again.");
-    }
-  };
-
-  const handleResend = async () => {
-    setError("");
-    try {
-      const { error: sendError } = await signUp.verifications.sendEmailCode();
-      if (sendError) {
-        setError(sendError.message ?? "Could not resend code.");
-      } else {
-        setError("New code sent. Check your inbox.");
-      }
-    } catch (err: any) {
-      setError(err?.errors?.[0]?.message ?? "Could not resend code.");
-    }
-  };
-
-  const handleVerify = async () => {
-    setError("");
-    try {
-      const { error: verifyError } = await signUp.verifications.verifyEmailCode({ code });
-      if (verifyError) {
-        setError(verifyError.message ?? "Invalid code. Please try again.");
-        return;
-      }
       await signUp.finalize({
         navigate: () => router.replace("/(tabs)"),
       });
     } catch (err: any) {
-      setError(err?.errors?.[0]?.message ?? "Invalid code. Please try again.");
+      setError(err?.errors?.[0]?.message ?? err?.message ?? "Sign up failed. Please try again.");
     }
   };
-
-  if (pendingVerification) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top + 40 }]}>
-        <Text style={styles.logo}>📬</Text>
-        <Text style={styles.title}>Check your email</Text>
-        <Text style={styles.subtitle}>Enter the 6-digit code sent to {email}</Text>
-
-        <View style={[styles.card, { marginHorizontal: 24 }]}>
-          <TextInput
-            style={styles.input}
-            value={code}
-            onChangeText={setCode}
-            placeholder="6-digit code"
-            placeholderTextColor={MUTED}
-            keyboardType="numeric"
-            autoFocus
-          />
-        </View>
-
-        {error ? <Text style={[styles.error, { marginHorizontal: 24 }]}>{error}</Text> : null}
-
-        <View style={{ paddingHorizontal: 24, gap: 12 }}>
-          <Pressable
-            style={[styles.btn, (!code || loading) && styles.btnDisabled]}
-            onPress={handleVerify}
-            disabled={!code || loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={BG} />
-            ) : (
-              <Text style={styles.btnText}>Verify</Text>
-            )}
-          </Pressable>
-          <Pressable onPress={handleResend} disabled={loading}>
-            <Text style={[styles.link, { textAlign: "center" }]}>Resend code</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <KeyboardAvoidingView
