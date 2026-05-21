@@ -12,26 +12,62 @@ import {
 } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { listLocalSongs, type LocalSong } from "@/lib/recordings";
 import { useListSongs } from "@workspace/api-client-react";
 
 type Slot = "a" | "b";
 
-interface TrackState {
-  songId: string | null;
+interface UnifiedSong {
+  key: string;
   title: string;
+  source: "local" | "cloud";
+  uri: string; // always a playable URI
+}
+
+interface TrackState {
+  song: UnifiedSong | null;
   volume: number;
   sound: Audio.Sound | null;
 }
 
 export default function MixerScreen() {
   const colors = useColors();
-  const { data: songs = [] } = useListSongs();
+  const { data: cloudSongs = [] } = useListSongs();
+  const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
+
+  useEffect(() => {
+    listLocalSongs().then(setLocalSongs).catch(() => {});
+  }, []);
+
+  // Merged list: cloud songs first, then local-only (not already uploaded)
+  const uploadedCloudIds = new Set(
+    localSongs.map((s) => s.cloudId).filter(Boolean)
+  );
+  const allSongs: UnifiedSong[] = [
+    ...(cloudSongs as any[])
+      .filter((s) => s.audioUrl)
+      .map((s) => ({
+        key: `cloud:${s.id}`,
+        title: s.title,
+        source: "cloud" as const,
+        uri: s.audioUrl as string,
+      })),
+    ...localSongs
+      .filter((s) => !s.cloudId || !uploadedCloudIds.has(s.cloudId))
+      .map((s) => ({
+        key: `local:${s.id}`,
+        title: s.title,
+        source: "local" as const,
+        uri: s.uri,
+      })),
+  ];
 
   const [tracks, setTracks] = useState<Record<Slot, TrackState>>({
-    a: { songId: null, title: "", volume: 0.8, sound: null },
-    b: { songId: null, title: "", volume: 0.8, sound: null },
+    a: { song: null, volume: 0.8, sound: null },
+    b: { song: null, volume: 0.8, sound: null },
   });
   const [playing, setPlaying] = useState(false);
+  const [loadingSlot, setLoadingSlot] = useState<Slot | null>(null);
   const [pickerOpen, setPickerOpen] = useState<Slot | null>(null);
   const tracksRef = useRef(tracks);
   tracksRef.current = tracks;
@@ -44,25 +80,25 @@ export default function MixerScreen() {
     };
   }, []);
 
-  const songsWithAudio = songs.filter((s: any) => s.audioUrl);
-
-  const loadTrack = async (slot: Slot, songId: string) => {
-    const song = songsWithAudio.find((s: any) => s.id === songId);
-    if (!song?.audioUrl) return;
+  const loadTrack = async (slot: Slot, song: UnifiedSong) => {
+    setLoadingSlot(slot);
     try {
-      await tracks[slot].sound?.unloadAsync();
+      await tracksRef.current[slot].sound?.unloadAsync();
     } catch {}
     try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const { sound } = await Audio.Sound.createAsync(
-        { uri: song.audioUrl },
+        { uri: song.uri },
         { shouldPlay: false, volume: tracks[slot].volume, isLooping: false }
       );
-      setTracks((t) => ({
-        ...t,
-        [slot]: { ...t[slot], songId, title: song.title, sound },
-      }));
-    } catch (e) {
-      Alert.alert("Error", "Could not load this track.");
+      setTracks((t) => ({ ...t, [slot]: { ...t[slot], song, sound } }));
+    } catch {
+      Alert.alert(
+        "Could not load track",
+        `"${song.title}" couldn't be loaded. If it's a cloud track, check your connection. If it's a local recording, try re-saving it.`
+      );
+    } finally {
+      setLoadingSlot(null);
     }
   };
 
@@ -75,22 +111,16 @@ export default function MixerScreen() {
     const a = tracks.a.sound;
     const b = tracks.b.sound;
     if (!a && !b) {
-      Alert.alert("No tracks", "Pick at least one track first.");
+      Alert.alert("No tracks loaded", "Pick at least one track first.");
       return;
     }
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      if (a) {
-        await a.setPositionAsync(0);
-        await a.playAsync();
-      }
-      if (b) {
-        await b.setPositionAsync(0);
-        await b.playAsync();
-      }
+      if (a) { await a.setPositionAsync(0); await a.playAsync(); }
+      if (b) { await b.setPositionAsync(0); await b.playAsync(); }
       setPlaying(true);
-    } catch (e) {
-      Alert.alert("Playback error", "Couldn't start playback.");
+    } catch {
+      Alert.alert("Playback error", "Couldn't start playback. Try loading the tracks again.");
     }
   };
 
@@ -134,6 +164,14 @@ export default function MixerScreen() {
     },
     pickBtnText: { flex: 1, color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 },
     pickBtnPlaceholder: { color: colors.mutedForeground },
+    badge: {
+      fontSize: 10,
+      fontFamily: "Inter_600SemiBold",
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+      borderRadius: 4,
+      overflow: "hidden",
+    },
     volRow: { gap: 6 },
     volLabel: { fontSize: 11, color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 1, fontFamily: "Inter_600SemiBold" },
     volTrack: { height: 6, backgroundColor: colors.muted, borderRadius: 3, marginVertical: 8 },
@@ -165,13 +203,15 @@ export default function MixerScreen() {
       maxHeight: "70%",
     },
     pickerTitle: { fontSize: 16, color: colors.foreground, fontFamily: "Inter_600SemiBold", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-    songRow: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
-    songTitle: { color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 },
+    songRow: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 },
+    songTitle: { flex: 1, color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 },
     note: { color: colors.mutedForeground, fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 8 },
+    loadingText: { color: colors.mutedForeground, fontSize: 12, fontFamily: "Inter_400Regular" },
   });
 
   const renderSlot = (slot: Slot) => {
     const t = tracks[slot];
+    const isLoadingThis = loadingSlot === slot;
     return (
       <View style={s.slotCard}>
         <View style={s.slotHead}>
@@ -180,9 +220,17 @@ export default function MixerScreen() {
           </View>
           <Pressable style={s.pickBtn} onPress={() => setPickerOpen(slot)}>
             <Feather name="music" size={14} color={colors.mutedForeground} />
-            <Text style={[s.pickBtnText, !t.title && s.pickBtnPlaceholder]}>
-              {t.title || "Pick a track"}
+            <Text style={[s.pickBtnText, !t.song && s.pickBtnPlaceholder]}>
+              {isLoadingThis ? "Loading…" : (t.song?.title || "Pick a track")}
             </Text>
+            {t.song && (
+              <Text style={[s.badge, {
+                backgroundColor: t.song.source === "cloud" ? colors.primary + "30" : colors.muted,
+                color: t.song.source === "cloud" ? colors.primary : colors.mutedForeground,
+              }]}>
+                {t.song.source}
+              </Text>
+            )}
             <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
           </Pressable>
         </View>
@@ -222,7 +270,7 @@ export default function MixerScreen() {
           )}
         </View>
 
-        <Text style={s.note}>Play both tracks at once with independent volume control.</Text>
+        <Text style={s.note}>Play two tracks at once with independent volume control.</Text>
       </ScrollView>
 
       <Modal visible={!!pickerOpen} transparent animationType="slide" onRequestClose={() => setPickerOpen(null)}>
@@ -230,23 +278,29 @@ export default function MixerScreen() {
           <Pressable style={s.pickerSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={s.pickerTitle}>Choose track for slot {pickerOpen?.toUpperCase()}</Text>
             <ScrollView>
-              {songsWithAudio.length === 0 ? (
+              {allSongs.length === 0 ? (
                 <View style={{ padding: 24, alignItems: "center" }}>
                   <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium" }}>
-                    No songs with audio yet. Record one in Studio first.
+                    No tracks yet. Record one in Studio first.
                   </Text>
                 </View>
               ) : (
-                songsWithAudio.map((song: any) => (
+                allSongs.map((song) => (
                   <Pressable
-                    key={song.id}
+                    key={song.key}
                     style={s.songRow}
                     onPress={async () => {
-                      if (pickerOpen) await loadTrack(pickerOpen, song.id);
                       setPickerOpen(null);
+                      if (pickerOpen) await loadTrack(pickerOpen, song);
                     }}
                   >
                     <Text style={s.songTitle}>{song.title}</Text>
+                    <Text style={[s.badge, {
+                      backgroundColor: song.source === "cloud" ? colors.primary + "30" : colors.muted,
+                      color: song.source === "cloud" ? colors.primary : colors.mutedForeground,
+                    }]}>
+                      {song.source}
+                    </Text>
                   </Pressable>
                 ))
               )}
