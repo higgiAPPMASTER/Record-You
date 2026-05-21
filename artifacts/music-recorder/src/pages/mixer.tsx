@@ -44,7 +44,7 @@ function TrackSelector({
   return (
     <div className="space-y-2">
       <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</Label>
-      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
         {tracks.map((track) => {
           const isSelected = selectedKey === track.key;
           const isDisabled = disabledKey === track.key;
@@ -239,7 +239,7 @@ export default function Mixer() {
   const isActive = state === "playing" || state === "recording";
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 max-w-4xl mx-auto pb-32">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <SlidersHorizontal className="w-6 h-6 text-primary" />
