@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 
 export type MixerState = "idle" | "loading" | "ready" | "playing" | "recording" | "done";
+export type RecordingMode = "closed" | "open";
 
 export interface TrackInfo {
   id: number;
@@ -13,10 +14,10 @@ export interface TrackState {
   pan: number;
   muted: boolean;
   soloed: boolean;
-  offset: number;     // seconds vs track 0; track 0 is always 0
-  reverbWet: number;  // 0–1
-  eqBass: number;     // dB −12..+12
-  eqTreble: number;   // dB −12..+12
+  offset: number;
+  reverbWet: number;
+  eqBass: number;
+  eqTreble: number;
 }
 
 const DEFAULT_TRACK: TrackState = {
@@ -36,6 +37,8 @@ export interface UseAudioMixerResult {
   loop: boolean;
   clickEnabled: boolean;
   bpm: number;
+  recordingMode: RecordingMode;
+  setRecordingMode: (m: RecordingMode) => void;
   setTrackVolume: (i: number, v: number) => void;
   setTrackPan: (i: number, v: number) => void;
   setTrackMuted: (i: number, v: boolean) => void;
@@ -94,7 +97,7 @@ function createImpulse(ctx: BaseAudioContext, durationSec = 1.5, decay = 3): Aud
   return b;
 }
 
-// ── Offline mix renderer (no microphone — reads only the loaded files) ────────
+// ── Offline mix renderer (closed mode — no microphone) ────────────────────────
 async function offlineMix(params: {
   audioUrls: string[];
   trackStates: TrackState[];
@@ -106,10 +109,9 @@ async function offlineMix(params: {
   bpm: number;
 }): Promise<Blob> {
   const { audioUrls, trackStates, duration, sampleRate, fadeIn, fadeOut, clickEnabled, bpm } = params;
-  const totalSec = duration + 2; // extra 2 s for reverb tail
+  const totalSec = duration + 2;
   const offCtx = new OfflineAudioContext(2, Math.ceil(totalSec * sampleRate), sampleRate);
 
-  // Decode all audio files in parallel
   const buffers = await Promise.all(audioUrls.map(async (url) => {
     const res = await fetch(url);
     const ab = await res.arrayBuffer();
@@ -127,19 +129,12 @@ async function offlineMix(params: {
 
     const src = offCtx.createBufferSource();
     src.buffer = audioBuf;
-
-    const pan = offCtx.createStereoPanner();
-    pan.pan.value = state.pan;
-
+    const pan = offCtx.createStereoPanner(); pan.pan.value = state.pan;
     const bass = offCtx.createBiquadFilter();
     bass.type = "lowshelf"; bass.frequency.value = 200; bass.gain.value = state.eqBass;
-
     const treble = offCtx.createBiquadFilter();
     treble.type = "highshelf"; treble.frequency.value = 3000; treble.gain.value = state.eqTreble;
-
-    const convolver = offCtx.createConvolver();
-    convolver.buffer = impulse;
-
+    const convolver = offCtx.createConvolver(); convolver.buffer = impulse;
     const reverbGain = offCtx.createGain(); reverbGain.gain.value = state.reverbWet;
     const sumGain = offCtx.createGain(); sumGain.gain.value = 1;
     const masterGain = offCtx.createGain();
@@ -156,22 +151,18 @@ async function offlineMix(params: {
       masterGain.gain.linearRampToValueAtTime(0, duration);
     }
 
-    // Same graph structure as live playback
     src.connect(pan).connect(bass).connect(treble).connect(sumGain);
     treble.connect(convolver).connect(reverbGain).connect(sumGain);
     sumGain.connect(masterGain).connect(offCtx.destination);
 
-    // Apply timing offset
     const offset = state.offset;
     if (offset >= 0) {
       src.start(offset);
     } else {
-      // Negative offset: skip into the buffer
       src.start(0, Math.min(Math.abs(offset), audioBuf.duration));
     }
   });
 
-  // Click track (scheduled oscillators, same as live)
   if (clickEnabled && bpm > 0) {
     const beatInterval = 60 / Math.max(20, bpm);
     let t = 0;
@@ -182,8 +173,7 @@ async function offlineMix(params: {
       cg.gain.setValueAtTime(0.4, t);
       cg.gain.exponentialRampToValueAtTime(0.001, t + 0.018);
       osc.connect(cg).connect(offCtx.destination);
-      osc.start(t);
-      osc.stop(t + 0.02);
+      osc.start(t); osc.stop(t + 0.02);
       t += beatInterval;
     }
   }
@@ -219,22 +209,21 @@ export function useAudioMixer(): UseAudioMixerResult {
   const [loop, setLoopState] = useState(false);
   const [clickEnabled, setClickEnabledState] = useState(false);
   const [bpm, setBpmState] = useState(120);
+  const [recordingMode, setRecordingModeState] = useState<RecordingMode>("closed");
 
-  // Refs for stale-closure-free access in async callbacks
   const tracksRef = useRef<TrackState[]>([]);
   const fadeInRef = useRef(0);
   const fadeOutRef = useRef(0);
   const loopRef = useRef(false);
   const clickEnabledRef = useRef(false);
   const bpmRef = useRef(120);
+  const recordingModeRef = useRef<RecordingMode>("closed");
   const stateRef = useRef<MixerState>("idle");
   stateRef.current = state;
 
-  // Audio graph (for preview playback)
   const ctxRef = useRef<AudioContext | null>(null);
   const nodesRef = useRef<TrackNodes[]>([]);
 
-  // Timers
   const timerRef = useRef<number | null>(null);
   const playTimeoutRef = useRef<number | null>(null);
   const fadeOutTimeoutRef = useRef<number | null>(null);
@@ -246,12 +235,19 @@ export function useAudioMixer(): UseAudioMixerResult {
   // Offline render cancellation
   const renderCancelledRef = useRef(false);
 
+  // Open-mode recording nodes
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const silentGainRef = useRef<GainNode | null>(null);
+  const captureBusRef = useRef<GainNode | null>(null);
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const pcmLeftRef = useRef<Float32Array[]>([]);
+  const pcmRightRef = useRef<Float32Array[]>([]);
+
   // ── Effective gain ──────────────────────────────────────────────────────────
   const effectiveGain = useCallback((i: number): number => {
-    const ts = tracksRef.current;
-    const t = ts[i];
-    if (!t) return 0;
-    if (t.muted) return 0;
+    const ts = tracksRef.current; const t = ts[i];
+    if (!t) return 0; if (t.muted) return 0;
     const anySoloed = ts.some(tt => tt.soloed);
     if (anySoloed && !t.soloed) return 0;
     return t.volume;
@@ -268,7 +264,7 @@ export function useAudioMixer(): UseAudioMixerResult {
     nodesRef.current.forEach((_, i) => applyGain(i));
   }, [applyGain]);
 
-  // ── Click track (live preview only) ─────────────────────────────────────────
+  // ── Click track (live preview / open recording) ──────────────────────────────
   const stopClick = useCallback(() => {
     if (clickIntervalRef.current) { clearInterval(clickIntervalRef.current); clickIntervalRef.current = null; }
   }, []);
@@ -280,14 +276,12 @@ export function useAudioMixer(): UseAudioMixerResult {
       const beatInterval = 60 / Math.max(20, bpmRef.current);
       while (nextClickTimeRef.current < ctx.currentTime + 0.12) {
         const t = nextClickTimeRef.current;
-        const osc = ctx.createOscillator();
-        const cg = ctx.createGain();
+        const osc = ctx.createOscillator(); const cg = ctx.createGain();
         osc.frequency.value = 1200;
         cg.gain.setValueAtTime(0.4, t);
         cg.gain.exponentialRampToValueAtTime(0.001, t + 0.018);
         osc.connect(cg).connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + 0.02);
+        osc.start(t); osc.stop(t + 0.02);
         nextClickTimeRef.current += beatInterval;
       }
     }, 25);
@@ -315,53 +309,50 @@ export function useAudioMixer(): UseAudioMixerResult {
     nodesRef.current.forEach(n => { if (!n) return; n.el.pause(); n.el.currentTime = 0; });
   }, []);
 
-  // ── Track state update helper ───────────────────────────────────────────────
+  // ── Open recording teardown ─────────────────────────────────────────────────
+  const finishOpenCapture = useCallback((): Blob => {
+    const sp = scriptProcessorRef.current;
+    const sg = silentGainRef.current;
+    const mic = micSourceRef.current;
+    const bus = captureBusRef.current;
+    const stream = micStreamRef.current;
+
+    if (sp) { sp.onaudioprocess = null; try { sp.disconnect(); } catch {} scriptProcessorRef.current = null; }
+    if (sg) { try { sg.disconnect(); } catch {} silentGainRef.current = null; }
+    if (mic) { try { mic.disconnect(); } catch {} micSourceRef.current = null; }
+    if (bus) { try { bus.disconnect(); } catch {} captureBusRef.current = null; }
+    if (stream) { stream.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
+
+    const blob = encodePCMasWAV(pcmLeftRef.current, pcmRightRef.current,
+      ctxRef.current?.sampleRate ?? 44100);
+    pcmLeftRef.current = []; pcmRightRef.current = [];
+    return blob;
+  }, []);
+
+  // ── Track state update ──────────────────────────────────────────────────────
   const updateTrack = useCallback((i: number, patch: Partial<TrackState>) => {
     tracksRef.current = tracksRef.current.map((t, idx) => idx === i ? { ...t, ...patch } : t);
     setTracks([...tracksRef.current]);
   }, []);
 
   // ── Public setters ──────────────────────────────────────────────────────────
-  const setTrackVolume = useCallback((i: number, v: number) => {
-    updateTrack(i, { volume: v }); applyGain(i);
-  }, [updateTrack, applyGain]);
-
-  const setTrackPan = useCallback((i: number, v: number) => {
-    updateTrack(i, { pan: v });
-    const n = nodesRef.current[i]; if (n) n.pan.pan.value = v;
-  }, [updateTrack]);
-
-  const setTrackMuted = useCallback((i: number, v: boolean) => {
-    updateTrack(i, { muted: v }); applyAllGains();
-  }, [updateTrack, applyAllGains]);
-
+  const setTrackVolume = useCallback((i: number, v: number) => { updateTrack(i, { volume: v }); applyGain(i); }, [updateTrack, applyGain]);
+  const setTrackPan = useCallback((i: number, v: number) => { updateTrack(i, { pan: v }); const n = nodesRef.current[i]; if (n) n.pan.pan.value = v; }, [updateTrack]);
+  const setTrackMuted = useCallback((i: number, v: boolean) => { updateTrack(i, { muted: v }); applyAllGains(); }, [updateTrack, applyAllGains]);
   const setTrackSoloed = useCallback((i: number, v: boolean) => {
     tracksRef.current = tracksRef.current.map((t, idx) => ({ ...t, soloed: idx === i ? v : false }));
     setTracks([...tracksRef.current]); applyAllGains();
   }, [applyAllGains]);
-
   const setTrackOffset = useCallback((i: number, v: number) => { updateTrack(i, { offset: v }); }, [updateTrack]);
-
-  const setTrackReverbWet = useCallback((i: number, v: number) => {
-    updateTrack(i, { reverbWet: v });
-    const n = nodesRef.current[i]; if (n) n.reverbGain.gain.value = v;
-  }, [updateTrack]);
-
-  const setTrackEqBass = useCallback((i: number, v: number) => {
-    updateTrack(i, { eqBass: v });
-    const n = nodesRef.current[i]; if (n) n.bass.gain.value = v;
-  }, [updateTrack]);
-
-  const setTrackEqTreble = useCallback((i: number, v: number) => {
-    updateTrack(i, { eqTreble: v });
-    const n = nodesRef.current[i]; if (n) n.treble.gain.value = v;
-  }, [updateTrack]);
-
+  const setTrackReverbWet = useCallback((i: number, v: number) => { updateTrack(i, { reverbWet: v }); const n = nodesRef.current[i]; if (n) n.reverbGain.gain.value = v; }, [updateTrack]);
+  const setTrackEqBass = useCallback((i: number, v: number) => { updateTrack(i, { eqBass: v }); const n = nodesRef.current[i]; if (n) n.bass.gain.value = v; }, [updateTrack]);
+  const setTrackEqTreble = useCallback((i: number, v: number) => { updateTrack(i, { eqTreble: v }); const n = nodesRef.current[i]; if (n) n.treble.gain.value = v; }, [updateTrack]);
   const setFadeInDuration = useCallback((v: number) => { fadeInRef.current = v; setFadeInDurationState(v); }, []);
   const setFadeOutDuration = useCallback((v: number) => { fadeOutRef.current = v; setFadeOutDurationState(v); }, []);
   const setLoop = useCallback((v: boolean) => { loopRef.current = v; setLoopState(v); }, []);
   const setClickEnabled = useCallback((v: boolean) => { clickEnabledRef.current = v; setClickEnabledState(v); }, []);
   const setBpm = useCallback((v: number) => { bpmRef.current = v; setBpmState(v); }, []);
+  const setRecordingMode = useCallback((m: RecordingMode) => { recordingModeRef.current = m; setRecordingModeState(m); }, []);
 
   // ── loadTracks ──────────────────────────────────────────────────────────────
   const loadTracks = useCallback(async (infos: TrackInfo[]) => {
@@ -386,21 +377,16 @@ export function useAudioMixer(): UseAudioMixerResult {
       const nodes: TrackNodes[] = audioEls.map((el, i) => {
         const src = ctx.createMediaElementSource(el);
         const pan = ctx.createStereoPanner();
-        const bass = ctx.createBiquadFilter();
-        bass.type = "lowshelf"; bass.frequency.value = 200;
-        const treble = ctx.createBiquadFilter();
-        treble.type = "highshelf"; treble.frequency.value = 3000;
-        const convolver = ctx.createConvolver();
-        convolver.buffer = impulse;
+        const bass = ctx.createBiquadFilter(); bass.type = "lowshelf"; bass.frequency.value = 200;
+        const treble = ctx.createBiquadFilter(); treble.type = "highshelf"; treble.frequency.value = 3000;
+        const convolver = ctx.createConvolver(); convolver.buffer = impulse;
         const reverbGain = ctx.createGain(); reverbGain.gain.value = 0;
         const sumGain = ctx.createGain(); sumGain.gain.value = 1;
         const masterGain = ctx.createGain();
 
         const init = tracksRef.current[i] ?? DEFAULT_TRACK;
-        pan.pan.value = init.pan;
-        bass.gain.value = init.eqBass;
-        treble.gain.value = init.eqTreble;
-        reverbGain.gain.value = init.reverbWet;
+        pan.pan.value = init.pan; bass.gain.value = init.eqBass;
+        treble.gain.value = init.eqTreble; reverbGain.gain.value = init.reverbWet;
 
         src.connect(pan).connect(bass).connect(treble).connect(sumGain);
         treble.connect(convolver).connect(reverbGain).connect(sumGain);
@@ -414,12 +400,9 @@ export function useAudioMixer(): UseAudioMixerResult {
         ...(tracksRef.current[i] ? { pan: tracksRef.current[i].pan, volume: tracksRef.current[i].volume } : {}),
       }));
       tracksRef.current = initialTracks;
-      ctxRef.current = ctx;
-      nodesRef.current = nodes;
+      ctxRef.current = ctx; nodesRef.current = nodes;
       offsetTimersRef.current = new Array(infos.length).fill(null);
-      setTracks(initialTracks);
-      setMixDuration(dur);
-      setState("ready");
+      setTracks(initialTracks); setMixDuration(dur); setState("ready");
       initialTracks.forEach((_, i) => applyGain(i));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load tracks");
@@ -504,58 +487,117 @@ export function useAudioMixer(): UseAudioMixerResult {
     }
   }, [haltElements, applyAllGains, clearTimers]);
 
-  // ── startRecording — offline render, no microphone ──────────────────────────
+  // ── startRecording — closed: offline render | open: live mic overdub ────────
   const startRecording = useCallback(() => {
     const ctx = ctxRef.current; const nodes = nodesRef.current;
     if (!ctx || nodes.length === 0) return;
 
     haltElements(); clearTimers(); setError(null);
     renderCancelledRef.current = false;
-    setState("recording"); setElapsedTime(0);
 
-    const audioUrls = nodes.map(n => n.el.src);
-    const duration = mixDuration;
-    const sampleRate = ctx.sampleRate;
+    if (recordingModeRef.current === "closed") {
+      // ── Closed: offline render, no microphone ─────────────────────────────
+      setState("recording"); setElapsedTime(0);
+      const audioUrls = nodes.map(n => n.el.src);
+      offlineMix({
+        audioUrls,
+        trackStates: tracksRef.current,
+        duration: mixDuration,
+        sampleRate: ctx.sampleRate,
+        fadeIn: fadeInRef.current,
+        fadeOut: fadeOutRef.current,
+        clickEnabled: clickEnabledRef.current,
+        bpm: bpmRef.current,
+      }).then((blob) => {
+        if (renderCancelledRef.current) return;
+        setRecordedBlob(blob); setState("done");
+      }).catch((err) => {
+        if (renderCancelledRef.current) return;
+        setError(err instanceof Error ? err.message : "Failed to render mix");
+        setState("ready");
+      });
 
-    offlineMix({
-      audioUrls,
-      trackStates: tracksRef.current,
-      duration,
-      sampleRate,
-      fadeIn: fadeInRef.current,
-      fadeOut: fadeOutRef.current,
-      clickEnabled: clickEnabledRef.current,
-      bpm: bpmRef.current,
-    }).then((blob) => {
-      if (renderCancelledRef.current) return;
-      setRecordedBlob(blob);
-      setState("done");
-    }).catch((err) => {
-      if (renderCancelledRef.current) return;
-      setError(err instanceof Error ? err.message : "Failed to render mix");
-      setState("ready");
-    });
-  }, [mixDuration, haltElements, clearTimers]); // eslint-disable-line react-hooks/exhaustive-deps
+    } else {
+      // ── Open: real-time capture — tracks + live mic ───────────────────────
+      (async () => {
+        try {
+          if (ctx.state !== "running") await ctx.resume();
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          micStreamRef.current = stream;
 
-  // ── stopRecording — cancel the pending render ────────────────────────────────
+          // Single capture bus collects tracks + mic
+          const captureBus = ctx.createGain(); captureBus.gain.value = 1;
+          nodes.forEach(n => n.masterGain.connect(captureBus));
+
+          const micSource = ctx.createMediaStreamSource(stream);
+          micSource.connect(captureBus);
+
+          // ScriptProcessorNode captures PCM from the bus
+          const sp = ctx.createScriptProcessor(4096, 2, 2);
+          const silentGain = ctx.createGain(); silentGain.gain.value = 0;
+          pcmLeftRef.current = []; pcmRightRef.current = [];
+
+          sp.onaudioprocess = (e) => {
+            const inp = e.inputBuffer;
+            const l = inp.getChannelData(0);
+            const r = inp.numberOfChannels > 1 ? inp.getChannelData(1) : inp.getChannelData(0);
+            pcmLeftRef.current.push(new Float32Array(l));
+            pcmRightRef.current.push(new Float32Array(r));
+          };
+
+          captureBus.connect(sp);
+          sp.connect(silentGain);
+          silentGain.connect(ctx.destination);
+
+          scriptProcessorRef.current = sp;
+          silentGainRef.current = silentGain;
+          micSourceRef.current = micSource;
+          captureBusRef.current = captureBus;
+
+          setState("recording"); setElapsedTime(0);
+          _startElements(ctx, fadeInRef.current);
+          startElapsedTimer(); startClick(ctx);
+
+          playTimeoutRef.current = window.setTimeout(() => {
+            haltElements(); clearTimers();
+            const blob = finishOpenCapture();
+            setRecordedBlob(blob); setState("done");
+          }, (mixDuration || 300) * 1000 + 500);
+
+        } catch {
+          setError("Microphone access denied. Allow mic access and try again.");
+          setState("ready");
+        }
+      })();
+    }
+  }, [mixDuration, haltElements, clearTimers, startElapsedTimer, startClick, finishOpenCapture, _startElements]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── stopRecording ───────────────────────────────────────────────────────────
   const stopRecording = useCallback(() => {
-    renderCancelledRef.current = true;
-    setState("ready"); setElapsedTime(0);
-  }, []);
+    if (recordingModeRef.current === "closed") {
+      renderCancelledRef.current = true;
+      setState("ready"); setElapsedTime(0);
+    } else {
+      haltElements(); clearTimers();
+      const blob = finishOpenCapture();
+      setRecordedBlob(blob); setState("done");
+    }
+  }, [haltElements, clearTimers, finishOpenCapture]);
 
   // ── reset ────────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
     renderCancelledRef.current = true;
-    haltElements(); clearTimers();
+    haltElements(); clearTimers(); finishOpenCapture();
     if (ctxRef.current) { ctxRef.current.close(); ctxRef.current = null; }
     nodesRef.current = []; tracksRef.current = []; offsetTimersRef.current = [];
     setTracks([]); setRecordedBlob(null); setElapsedTime(0); setMixDuration(0);
     setError(null); setState("idle");
-  }, [haltElements, clearTimers]);
+  }, [haltElements, clearTimers, finishOpenCapture]);
 
   return {
     state, error, mixDuration, recordedBlob, elapsedTime,
     tracks, fadeInDuration, fadeOutDuration, loop, clickEnabled, bpm,
+    recordingMode, setRecordingMode,
     setTrackVolume, setTrackPan, setTrackMuted, setTrackSoloed,
     setTrackOffset, setTrackReverbWet, setTrackEqBass, setTrackEqTreble,
     setFadeInDuration, setFadeOutDuration, setLoop, setClickEnabled, setBpm,

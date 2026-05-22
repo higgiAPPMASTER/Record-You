@@ -295,7 +295,7 @@ export default function Mixer() {
   const {
     state, error, mixDuration, recordedBlob, elapsedTime,
     tracks: hookTracks, fadeInDuration, fadeOutDuration, loop,
-    clickEnabled, bpm,
+    clickEnabled, bpm, recordingMode, setRecordingMode,
     setTrackVolume, setTrackPan, setTrackMuted, setTrackSoloed,
     setTrackOffset, setTrackReverbWet, setTrackEqBass, setTrackEqTreble,
     setFadeInDuration, setFadeOutDuration, setLoop, setClickEnabled, setBpm,
@@ -486,41 +486,75 @@ export default function Mixer() {
               </div>
             )}
 
-            {/* Fade + loop + click controls */}
+            {/* Fade + loop + click + recording mode controls */}
             {(state === "ready" || state === "idle") && (
-              <div className="flex flex-wrap gap-4 mb-4 pb-4 border-b border-border">
-                <FadePicker label="Fade in" value={fadeInDuration} onChange={setFadeInDuration} />
-                <FadePicker label="Fade out" value={fadeOutDuration} onChange={setFadeOutDuration} />
-                <button
-                  onClick={() => setLoop(!loop)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
-                    loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"
+              <div className="space-y-3 mb-4 pb-4 border-b border-border">
+                <div className="flex flex-wrap gap-4">
+                  <FadePicker label="Fade in" value={fadeInDuration} onChange={setFadeInDuration} />
+                  <FadePicker label="Fade out" value={fadeOutDuration} onChange={setFadeOutDuration} />
+                  <button
+                    onClick={() => setLoop(!loop)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                      loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                    )}
+                  >
+                    <Repeat className="w-3.5 h-3.5" /> Loop
+                  </button>
+                  <button
+                    onClick={() => setClickEnabled(!clickEnabled)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                      clickEnabled ? "bg-orange-500/15 border-orange-500 text-orange-500" : "border-border text-muted-foreground hover:border-orange-500/50"
+                    )}
+                  >
+                    <Music2 className="w-3.5 h-3.5" /> Click
+                  </button>
+                  {clickEnabled && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">BPM</span>
+                      <input
+                        type="number"
+                        min={20} max={300} value={bpm}
+                        onChange={e => setBpm(Math.max(20, Math.min(300, parseInt(e.target.value) || 120)))}
+                        className="w-16 h-7 px-2 rounded-md border border-border bg-background text-xs font-mono text-center"
+                      />
+                    </div>
                   )}
-                >
-                  <Repeat className="w-3.5 h-3.5" /> Loop
-                </button>
-                {/* Click track */}
-                <button
-                  onClick={() => setClickEnabled(!clickEnabled)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
-                    clickEnabled ? "bg-orange-500/15 border-orange-500 text-orange-500" : "border-border text-muted-foreground hover:border-orange-500/50"
-                  )}
-                >
-                  <Music2 className="w-3.5 h-3.5" /> Click
-                </button>
-                {clickEnabled && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">BPM</span>
-                    <input
-                      type="number"
-                      min={20} max={300} value={bpm}
-                      onChange={e => setBpm(Math.max(20, Math.min(300, parseInt(e.target.value) || 120)))}
-                      className="w-16 h-7 px-2 rounded-md border border-border bg-background text-xs font-mono text-center"
-                    />
+                </div>
+                {/* Recording mode picker */}
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">Capture mode</span>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setRecordingMode("closed")}
+                      className={cn(
+                        "px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                        recordingMode === "closed"
+                          ? "bg-primary/15 border-primary text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/50"
+                      )}
+                    >
+                      🔒 Tracks only
+                    </button>
+                    <button
+                      onClick={() => setRecordingMode("open")}
+                      className={cn(
+                        "px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                        recordingMode === "open"
+                          ? "bg-red-500/15 border-red-500 text-red-400"
+                          : "border-border text-muted-foreground hover:border-red-500/50"
+                      )}
+                    >
+                      🎙 Add live layer
+                    </button>
                   </div>
-                )}
+                  <span className="text-[11px] text-muted-foreground">
+                    {recordingMode === "closed"
+                      ? "Offline render — no mic, instant"
+                      : "Mix plays live while your mic is captured on top"}
+                  </span>
+                </div>
               </div>
             )}
 
@@ -537,9 +571,15 @@ export default function Mixer() {
                   <Button variant="outline" onClick={play} className="gap-2">
                     <Play className="w-4 h-4" /> Preview Mix
                   </Button>
-                  <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
-                    <Disc className="w-4 h-4" /> Render Mix
-                  </Button>
+                  {recordingMode === "closed" ? (
+                    <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                      <Disc className="w-4 h-4" /> Render Mix
+                    </Button>
+                  ) : (
+                    <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                      <span className="w-3 h-3 rounded-full bg-white" /> Record Mix + Mic
+                    </Button>
+                  )}
                   <Button variant="ghost" onClick={handleReset} className="ml-auto text-muted-foreground">Start Over</Button>
                 </>
               )}
@@ -549,9 +589,15 @@ export default function Mixer() {
                 </Button>
               )}
               {state === "recording" && (
-                <Button onClick={stopRecording} variant="outline" className="gap-2">
-                  <Square className="w-4 h-4" /> Cancel
-                </Button>
+                recordingMode === "closed" ? (
+                  <Button onClick={stopRecording} variant="outline" className="gap-2">
+                    <Square className="w-4 h-4" /> Cancel
+                  </Button>
+                ) : (
+                  <Button onClick={stopRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                    <Square className="w-4 h-4" /> Stop Recording
+                  </Button>
+                )
               )}
               {state === "done" && !recordedBlob && (
                 <span className="text-muted-foreground text-sm">Processing...</span>
