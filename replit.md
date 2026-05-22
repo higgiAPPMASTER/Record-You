@@ -32,11 +32,18 @@ A personal music recording web app where musicians can record songs, manage a li
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **ScriptProcessorNode capture (not MediaRecorder)**: MediaRecorder + Web Audio streams is broken on iOS Safari. We capture raw PCM via ScriptProcessorNode → encode as WAV — works on every browser including iOS.
+- **Synthetic reverb impulse**: Reverb is generated with `createImpulse()` (random noise × exponential decay) in the AudioContext — no external IR files needed.
+- **Array-based N-track hook**: `useAudioMixer` accepts 2–4 `TrackInfo` objects and maintains parallel arrays of AudioNodes + TrackState, keeping the graph fully dynamic.
+- **Web Audio click track**: Precise oscillator scheduling via 25ms look-ahead loop — captures cleanly into the mix WAV if click is enabled during recording.
+- **Per-track offset**: Track A is always the time reference (offset = 0); Tracks B/C/D have an adjustable time offset applied at playback start via `setTimeout`.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Song Library**: Record, upload, tag, and browse songs with waveform display and cloud sync.
+- **Mixer**: Layer 2–4 tracks with per-track volume, pan, EQ (bass/treble shelving), reverb (wet knob), timing offset, mute/solo, fade in/out, loop, and an audio click track. Records the mix to a WAV file.
+- **Trim Page**: Drag start/end handles on a waveform to crop any song; preview the trimmed section; save to library.
+- **Tools**: Chromatic tuner, metronome, chord library, capo calculator, tab viewer.
 
 ## User preferences
 

@@ -13,6 +13,7 @@ import Tuner from "@/pages/tuner";
 import Chords from "@/pages/chords";
 import Tabs from "@/pages/tabs";
 import Capo from "@/pages/capo";
+import Trim from "@/pages/trim";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ function Router() {
         <Route path="/song/:id" component={SongDetail} />
         <Route path="/shared/:id" component={Shared} />
         <Route path="/mixer" component={Mixer} />
+        <Route path="/trim" component={Trim} />
         <Route path="/tuner" component={Tuner} />
         <Route path="/chords" component={Chords} />
         <Route path="/tabs" component={Tabs} />

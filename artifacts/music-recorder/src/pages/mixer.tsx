@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useListSongs } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Play, Square, Disc, Loader2, Check, Volume2,
-  SlidersHorizontal, Repeat, VolumeX, Zap, Download,
+  SlidersHorizontal, Repeat, VolumeX, Zap, Download, Music2, Wand2,
 } from "lucide-react";
-import { useAudioMixer } from "@/hooks/use-audio-mixer";
+import { useAudioMixer, type TrackState } from "@/hooks/use-audio-mixer";
+import { MixerWaveform } from "@/components/mixer-waveform";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,14 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { listLocalSongs, getLocalAudioUrl, type LocalSong } from "@/lib/local-songs";
 import { getListSongsQueryKey, getGetSongStatsQueryKey, useCreateSong } from "@workspace/api-client-react";
+
+const TRACK_LABELS = ["A", "B", "C", "D"];
+const TRACK_COLORS = [
+  "hsl(var(--primary))",
+  "#f59e0b",
+  "#10b981",
+  "#ef4444",
+];
 
 type MixableTrack = {
   key: string;
@@ -33,29 +42,28 @@ function formatDuration(seconds: number) {
 }
 
 function TrackSelector({
-  label, tracks, selectedKey, onChange, disabledKey,
+  label, availableTracks, selectedKey, onChange, disabledKeys,
 }: {
   label: string;
-  tracks: MixableTrack[];
+  availableTracks: MixableTrack[];
   selectedKey: string | null;
   onChange: (key: string | null) => void;
-  disabledKey: string | null;
+  disabledKeys: Set<string>;
 }) {
   return (
     <div className="space-y-2">
       <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</Label>
-      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-        {tracks.map((track) => {
+      <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+        {availableTracks.map((track) => {
           const isSelected = selectedKey === track.key;
-          const isDisabled = disabledKey === track.key;
+          const isDisabled = disabledKeys.has(track.key);
           return (
             <button
               key={track.key}
               disabled={isDisabled}
               onClick={() => onChange(isSelected ? null : track.key)}
               className={cn(
-                "w-full text-left px-3 py-2.5 rounded-md border text-sm transition-all",
-                "flex items-center justify-between gap-2",
+                "w-full text-left px-3 py-2 rounded-md border text-sm transition-all flex items-center justify-between gap-2",
                 isSelected
                   ? "border-primary bg-primary/10 text-primary"
                   : isDisabled
@@ -74,7 +82,7 @@ function TrackSelector({
                 {track.duration != null && (
                   <span className="font-mono text-xs text-muted-foreground">{formatDuration(track.duration)}</span>
                 )}
-                {isSelected && <Check className="w-4 h-4 text-primary" />}
+                {isSelected && <Check className="w-3.5 h-3.5 text-primary" />}
               </div>
             </button>
           );
@@ -85,7 +93,6 @@ function TrackSelector({
 }
 
 const FADE_OPTIONS = [0, 1, 2, 3, 5];
-
 function FadePicker({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -97,9 +104,7 @@ function FadePicker({ label, value, onChange }: { label: string; value: number; 
             onClick={() => onChange(s)}
             className={cn(
               "px-2 py-1 rounded text-[11px] font-mono transition-colors",
-              value === s
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/70"
+              value === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"
             )}
           >
             {s}s
@@ -116,6 +121,135 @@ function PanLabel(v: number) {
   return "C";
 }
 
+function TrackControls({
+  idx, track, label, color, audioUrl, isRecording,
+  setVolume, setPan, setMuted, setSoloed, setOffset, setReverbWet, setEqBass, setEqTreble,
+}: {
+  idx: number; track: TrackState; label: string; color: string; audioUrl: string | null; isRecording: boolean;
+  setVolume: (v: number) => void; setPan: (v: number) => void;
+  setMuted: (v: boolean) => void; setSoloed: (v: boolean) => void;
+  setOffset: (v: number) => void; setReverbWet: (v: number) => void;
+  setEqBass: (v: number) => void; setEqTreble: (v: number) => void;
+}) {
+  const [showFx, setShowFx] = useState(false);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: color + "30", color }}>
+          {label}
+        </span>
+        <div className="flex gap-1 ml-auto">
+          <button
+            onClick={() => setMuted(!track.muted)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors",
+              track.muted ? "bg-destructive/20 border-destructive text-destructive" : "border-border text-muted-foreground hover:border-destructive/50"
+            )}
+          >
+            <VolumeX className="w-3 h-3" /> M
+          </button>
+          <button
+            onClick={() => setSoloed(!track.soloed)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors",
+              track.soloed ? "bg-yellow-500/20 border-yellow-500 text-yellow-500" : "border-border text-muted-foreground hover:border-yellow-500/50"
+            )}
+          >
+            <Zap className="w-3 h-3" /> S
+          </button>
+          <button
+            onClick={() => setShowFx(!showFx)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors",
+              showFx ? "bg-purple-500/20 border-purple-500 text-purple-500" : "border-border text-muted-foreground hover:border-purple-500/50"
+            )}
+          >
+            <Wand2 className="w-3 h-3" /> FX
+          </button>
+        </div>
+      </div>
+
+      {/* Waveform */}
+      {audioUrl && <MixerWaveform src={audioUrl} color={color} height={36} />}
+
+      {/* Volume */}
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
+          <Volume2 className="w-3 h-3 text-muted-foreground" />
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Volume</span>
+          <span className="ml-auto font-mono text-[11px] text-muted-foreground">{Math.round(track.volume * 100)}%</span>
+        </div>
+        <Slider min={0} max={1} step={0.01} value={[track.volume]} onValueChange={([v]) => setVolume(v)} disabled={isRecording} />
+      </div>
+
+      {/* Pan */}
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Pan</span>
+          <span className="ml-auto font-mono text-[11px] text-muted-foreground">{PanLabel(track.pan)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">L</span>
+          <Slider min={-1} max={1} step={0.01} value={[track.pan]} onValueChange={([v]) => setPan(v)} disabled={isRecording} className="flex-1" />
+          <span className="text-[10px] text-muted-foreground">R</span>
+        </div>
+      </div>
+
+      {/* FX panel */}
+      {showFx && (
+        <div className="border-t border-border pt-3 space-y-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Bass EQ</span>
+              <span className="ml-auto font-mono text-[11px] text-muted-foreground">{track.eqBass > 0 ? "+" : ""}{track.eqBass.toFixed(0)} dB</span>
+            </div>
+            <Slider min={-12} max={12} step={1} value={[track.eqBass]} onValueChange={([v]) => setEqBass(v)} />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Treble EQ</span>
+              <span className="ml-auto font-mono text-[11px] text-muted-foreground">{track.eqTreble > 0 ? "+" : ""}{track.eqTreble.toFixed(0)} dB</span>
+            </div>
+            <Slider min={-12} max={12} step={1} value={[track.eqTreble]} onValueChange={([v]) => setEqTreble(v)} />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Reverb</span>
+              <span className="ml-auto font-mono text-[11px] text-muted-foreground">{Math.round(track.reverbWet * 100)}%</span>
+            </div>
+            <Slider min={0} max={1} step={0.01} value={[track.reverbWet]} onValueChange={([v]) => setReverbWet(v)} />
+          </div>
+        </div>
+      )}
+
+      {/* Offset (tracks > 0 only) */}
+      {idx > 0 && (
+        <div className="border-t border-border pt-3 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Timing vs A</span>
+            <span className={cn(
+              "font-mono text-[11px] px-1.5 py-0.5 rounded border",
+              track.offset === 0 ? "border-border text-muted-foreground" : "border-primary/50 bg-primary/10 text-primary"
+            )}>
+              {track.offset === 0 ? "in sync" : track.offset > 0 ? `+${track.offset.toFixed(2)}s` : `${track.offset.toFixed(2)}s`}
+            </span>
+            {track.offset !== 0 && (
+              <button onClick={() => setOffset(0)} className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 ml-auto">reset</button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground shrink-0">earlier ←</span>
+            <Slider min={-10} max={10} step={0.25} value={[track.offset]} onValueChange={([v]) => setOffset(v)} className="flex-1" />
+            <span className="text-[10px] text-muted-foreground shrink-0">→ later</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Mixer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -125,7 +259,7 @@ export default function Mixer() {
   const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
   useEffect(() => { setLocalSongs(listLocalSongs()); }, []);
 
-  const tracks: MixableTrack[] = (() => {
+  const availableTracks: MixableTrack[] = (() => {
     const items: MixableTrack[] = [];
     for (const s of cloudSongs) {
       if (s.hasAudio && typeof s.audioUrl === "string") {
@@ -140,230 +274,182 @@ export default function Mixer() {
     return items;
   })();
 
-  const [track1Key, setTrack1Key] = useState<string | null>(null);
-  const [track2Key, setTrack2Key] = useState<string | null>(null);
+  const [trackCount, setTrackCount] = useState(2);
+  const [trackKeys, setTrackKeys] = useState<(string | null)[]>([null, null, null, null]);
+  const [loadedAudioUrls, setLoadedAudioUrls] = useState<(string | null)[]>([]);
   const [mixTitle, setMixTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
 
   const {
     state, error, mixDuration, recordedBlob, elapsedTime,
-    track1Volume, track2Volume, track1Pan, track2Pan,
-    track1Mute, track2Mute, track1Solo, track2Solo,
-    fadeInDuration, fadeOutDuration, loop,
-    track2Offset,
-    setTrack1Volume, setTrack2Volume,
-    setTrack1Pan, setTrack2Pan,
-    setTrack1Mute, setTrack2Mute,
-    setTrack1Solo, setTrack2Solo,
-    setFadeInDuration, setFadeOutDuration,
-    setLoop, setTrack2Offset,
+    tracks: hookTracks, fadeInDuration, fadeOutDuration, loop,
+    clickEnabled, bpm,
+    setTrackVolume, setTrackPan, setTrackMuted, setTrackSoloed,
+    setTrackOffset, setTrackReverbWet, setTrackEqBass, setTrackEqTreble,
+    setFadeInDuration, setFadeOutDuration, setLoop, setClickEnabled, setBpm,
     loadTracks, play, stop, startRecording, stopRecording, reset,
   } = useAudioMixer();
 
-  const track1 = tracks.find((t) => t.key === track1Key) ?? null;
-  const track2 = tracks.find((t) => t.key === track2Key) ?? null;
-  const canLoad = !!track1 && !!track2 && state === "idle";
-  const isLoaded = state === "ready" || state === "playing" || state === "recording" || state === "done";
+  const isLoaded = !["idle", "loading"].includes(state);
+  const isActive = ["playing", "recording"].includes(state);
 
-  const resolveAudioUrl = useCallback(async (track: MixableTrack): Promise<string> => {
-    if (track.source === "cloud" && track.cloudAudioUrl) return track.cloudAudioUrl;
-    if (track.source === "local" && track.localId) {
-      const url = await getLocalAudioUrl(track.localId);
-      if (!url) throw new Error(`No audio found on device for "${track.title}".`);
-      return url;
-    }
-    throw new Error(`No audio URL for "${track.title}"`);
-  }, []);
-
-  const handleLoad = async () => {
-    if (!track1 || !track2) return;
-    setIsLoadingTracks(true);
-    try {
-      const [url1, url2] = await Promise.all([resolveAudioUrl(track1), resolveAudioUrl(track2)]);
-      await loadTracks(
-        { id: track1.cloudId ?? 0, title: track1.title, audioUrl: url1 },
-        { id: track2.cloudId ?? 0, title: track2.title, audioUrl: url2 },
-      );
-    } catch (err) {
-      toast({ title: "Could not load track", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
-    } finally {
-      setIsLoadingTracks(false);
-    }
+  const setTrackKey = (i: number, key: string | null) => {
+    setTrackKeys(prev => prev.map((k, idx) => idx === i ? key : k));
   };
 
-  const handleReset = () => { reset(); setTrack1Key(null); setTrack2Key(null); setMixTitle(""); };
+  const disabledKeysFor = (i: number): Set<string> => {
+    const others = trackKeys.filter((_, idx) => idx !== i && idx < trackCount);
+    return new Set(others.filter(Boolean) as string[]);
+  };
+
+  const getTrackAudioUrl = useCallback(async (track: MixableTrack): Promise<string> => {
+    if (track.source === "cloud") return track.cloudAudioUrl!;
+    const url = await getLocalAudioUrl(track.localId!);
+    if (!url) throw new Error(`Could not load audio for "${track.title}"`);
+    return url;
+  }, []);
+
+  const canLoad = trackKeys.slice(0, trackCount).every(k => k !== null);
+
+  const handleLoad = useCallback(async () => {
+    const selectedKeys = trackKeys.slice(0, trackCount);
+    const selected = selectedKeys.map(k => availableTracks.find(t => t.key === k) ?? null);
+    if (selected.some(t => !t)) return;
+    setIsLoadingTracks(true);
+    try {
+      const urls = await Promise.all(selected.map(t => getTrackAudioUrl(t!)));
+      const infos = selected.map((t, i) => ({ id: t!.cloudId ?? i, title: t!.title, audioUrl: urls[i] }));
+      setLoadedAudioUrls(urls);
+      await loadTracks(infos);
+    } catch { /* hook captures error */ } finally {
+      setIsLoadingTracks(false);
+    }
+  }, [trackKeys, trackCount, availableTracks, getTrackAudioUrl, loadTracks]);
+
+  const handleReset = () => { reset(); setLoadedAudioUrls([]); };
 
   const handleSaveMix = async () => {
     if (!recordedBlob || !mixTitle.trim()) return;
     setIsSaving(true);
     try {
-      const song = await new Promise<{ id: number }>((resolve, reject) => {
-        createSong.mutate(
-          { data: { title: mixTitle.trim(), notes: `Mixed from: ${track1?.title ?? "Track A"} + ${track2?.title ?? "Track B"}`, tags: "mix" } },
-          { onSuccess: resolve, onError: reject }
-        );
-      });
-      const formData = new FormData();
-      formData.append("audio", recordedBlob, "mix.webm");
-      formData.append("duration", String(mixDuration));
-      const res = await fetch(`/api/songs/${song.id}/audio`, { method: "POST", body: formData });
-      if (!res.ok) throw new Error("Failed to upload mix audio");
+      const file = new File([recordedBlob], `${mixTitle.trim()}.wav`, { type: "audio/wav" });
+      const form = new FormData();
+      form.append("title", mixTitle.trim());
+      form.append("audio", file);
+      await createSong.mutateAsync(form as any);
       await queryClient.invalidateQueries({ queryKey: getListSongsQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetSongStatsQueryKey() });
       toast({ title: "Mix saved!", description: `"${mixTitle.trim()}" added to your library.` });
-      handleReset();
+      reset(); setMixTitle(""); setLoadedAudioUrls([]);
     } catch {
-      toast({ title: "Save failed", description: "Could not save the mix. Try again.", variant: "destructive" });
+      toast({ title: "Save failed", description: "Could not upload the mix. Try downloading it instead.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const trackControls = [
-    {
-      label: "Track A", title: track1?.title ?? "",
-      volume: track1Volume, setVolume: setTrack1Volume,
-      pan: track1Pan, setPan: setTrack1Pan,
-      mute: track1Mute, setMute: setTrack1Mute,
-      solo: track1Solo, setSolo: setTrack1Solo,
-    },
-    {
-      label: "Track B", title: track2?.title ?? "",
-      volume: track2Volume, setVolume: setTrack2Volume,
-      pan: track2Pan, setPan: setTrack2Pan,
-      mute: track2Mute, setMute: setTrack2Mute,
-      solo: track2Solo, setSolo: setTrack2Solo,
-    },
-  ];
-
-  const isActive = state === "playing" || state === "recording";
+  const trackGridClass = hookTracks.length === 3 ? "grid-cols-3" : "grid-cols-2";
 
   return (
-    <div className="p-8 max-w-4xl mx-auto pb-32">
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
+    <div className="p-6 max-w-5xl mx-auto pb-32">
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-1.5">
           <SlidersHorizontal className="w-6 h-6 text-primary" />
           <h1 className="text-3xl font-bold tracking-tight">Mixer</h1>
         </div>
-        <p className="text-muted-foreground">Layer two tracks together and save the result as a new song.</p>
+        <p className="text-muted-foreground">Layer up to 4 tracks, shape the sound with EQ and reverb, then record the mix.</p>
       </div>
 
-      {tracks.length < 2 ? (
+      {availableTracks.length < 2 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <Disc className="w-12 h-12 text-muted-foreground/30 mb-4" />
           <p className="text-muted-foreground font-medium">You need at least 2 recorded tracks to mix.</p>
           <p className="text-sm text-muted-foreground/60 mt-1">Head to the Studio to record some tracks first.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Track selection (idle only) */}
+        <div className="space-y-5">
+          {/* Track count + selection (idle only) */}
           {state === "idle" && (
-            <div className="grid grid-cols-2 gap-6">
-              {[
-                { label: "Track A", key: track1Key, setKey: setTrack1Key, disabledKey: track2Key, vol: track1Volume, setVol: setTrack1Volume },
-                { label: "Track B", key: track2Key, setKey: setTrack2Key, disabledKey: track1Key, vol: track2Volume, setVol: setTrack2Volume },
-              ].map(({ label, key, setKey, disabledKey, vol, setVol }) => (
-                <div key={label} className="rounded-xl border border-border bg-card p-5 space-y-5">
-                  <TrackSelector label={label} tracks={tracks} selectedKey={key} onChange={setKey} disabledKey={disabledKey} />
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-muted-foreground" />
-                      <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Volume {label.split(" ")[1]}</Label>
-                      <span className="ml-auto font-mono text-xs text-muted-foreground">{Math.round(vol * 100)}%</span>
-                    </div>
-                    <Slider min={0} max={1} step={0.01} value={[vol]} onValueChange={([v]) => setVol(v)} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Live track controls (after loading) */}
-          {isLoaded && (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <div className="grid grid-cols-2 gap-8">
-                {trackControls.map(({ label, title, volume, setVolume, pan, setPan, mute, setMute, solo, setSolo }) => (
-                  <div key={label} className="space-y-4">
-                    {/* Header */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-primary">{label}</span>
-                      <span className="font-medium text-sm truncate max-w-[140px]">{title}</span>
-                      <div className="flex gap-1.5 shrink-0">
-                        <button
-                          onClick={() => setMute(!mute)}
-                          title={mute ? "Unmute" : "Mute"}
-                          className={cn(
-                            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors",
-                            mute ? "bg-destructive/20 border-destructive text-destructive" : "border-border text-muted-foreground hover:border-destructive/50"
-                          )}
-                        >
-                          <VolumeX className="w-3 h-3" /> M
-                        </button>
-                        <button
-                          onClick={() => setSolo(!solo)}
-                          title={solo ? "Unsolo" : "Solo this track"}
-                          className={cn(
-                            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors",
-                            solo ? "bg-yellow-500/20 border-yellow-500 text-yellow-500" : "border-border text-muted-foreground hover:border-yellow-500/50"
-                          )}
-                        >
-                          <Zap className="w-3 h-3" /> S
-                        </button>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-muted-foreground">Tracks to mix:</span>
+                {[2, 3, 4].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setTrackCount(n)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg border text-sm font-semibold transition-colors",
+                      trackCount === n ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className={cn("grid gap-4", trackGridClass)}>
+                {Array.from({ length: trackCount }, (_, i) => {
+                  const t = availableTracks.find(t => t.key === trackKeys[i]) ?? null;
+                  return (
+                    <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: TRACK_COLORS[i] + "30", color: TRACK_COLORS[i] }}>
+                          Track {TRACK_LABELS[i]}
+                        </span>
+                        {t && <span className="text-sm text-muted-foreground truncate">{t.title}</span>}
                       </div>
-                    </div>
-
-                    {/* Volume */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Vol</span>
-                        <span className="ml-auto font-mono text-[11px] text-muted-foreground">{Math.round(volume * 100)}%</span>
-                      </div>
-                      <Slider
-                        min={0} max={1} step={0.01}
-                        value={[volume]}
-                        onValueChange={([v]) => setVolume(v)}
-                        disabled={state === "recording"}
+                      <TrackSelector
+                        label={`Select track ${TRACK_LABELS[i]}`}
+                        availableTracks={availableTracks}
+                        selectedKey={trackKeys[i]}
+                        onChange={(k) => setTrackKey(i, k)}
+                        disabledKeys={disabledKeysFor(i)}
                       />
                     </div>
-
-                    {/* Pan */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Pan</span>
-                        <span className="ml-auto font-mono text-[11px] text-muted-foreground">{PanLabel(pan)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground">L</span>
-                        <Slider
-                          min={-1} max={1} step={0.01}
-                          value={[pan]}
-                          onValueChange={([v]) => setPan(v)}
-                          disabled={state === "recording"}
-                          className="flex-1"
-                        />
-                        <span className="text-[10px] text-muted-foreground">R</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
+          {/* Live track controls */}
+          {isLoaded && hookTracks.length > 0 && (
+            <div className={cn("grid gap-4", trackGridClass)}>
+              {hookTracks.map((track, i) => (
+                <TrackControls
+                  key={i}
+                  idx={i}
+                  track={track}
+                  label={`Track ${TRACK_LABELS[i]}`}
+                  color={TRACK_COLORS[i]}
+                  audioUrl={loadedAudioUrls[i] ?? null}
+                  isRecording={state === "recording"}
+                  setVolume={v => setTrackVolume(i, v)}
+                  setPan={v => setTrackPan(i, v)}
+                  setMuted={v => setTrackMuted(i, v)}
+                  setSoloed={v => setTrackSoloed(i, v)}
+                  setOffset={v => setTrackOffset(i, v)}
+                  setReverbWet={v => setTrackReverbWet(i, v)}
+                  setEqBass={v => setTrackEqBass(i, v)}
+                  setEqTreble={v => setTrackEqTreble(i, v)}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Transport */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="flex items-center justify-between mb-5">
+          <div className="rounded-xl border border-border bg-card p-5">
+            {/* Status + timer */}
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 {state === "recording" && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />}
                 {state === "playing" && <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />}
                 <span className="text-sm font-medium text-muted-foreground">
-                  {state === "idle" ? "Select two tracks above"
+                  {state === "idle" ? "Select tracks above"
                     : state === "loading" ? "Loading tracks..."
                     : state === "ready" ? "Ready"
                     : state === "playing" ? "Previewing..."
-                    : state === "recording" ? "Recording..."
+                    : state === "recording" ? "Recording mix..."
                     : "Mix captured"}
                 </span>
               </div>
@@ -380,7 +466,7 @@ export default function Mixer() {
 
             {/* Progress bar */}
             {isActive && mixDuration > 0 && (
-              <div className="w-full h-1.5 bg-muted rounded-full mb-5 overflow-hidden">
+              <div className="w-full h-1.5 bg-muted rounded-full mb-4 overflow-hidden">
                 <div
                   className={cn("h-full rounded-full transition-all", state === "recording" ? "bg-red-500" : "bg-primary")}
                   style={{ width: `${Math.min((elapsedTime / mixDuration) * 100, 100)}%` }}
@@ -388,58 +474,39 @@ export default function Mixer() {
               </div>
             )}
 
-            {/* Fade + loop controls */}
+            {/* Fade + loop + click controls */}
             {(state === "ready" || state === "idle") && (
-              <div className="space-y-4 mb-5 pb-5 border-b border-border">
-                <div className="flex flex-wrap gap-4">
-                  <FadePicker label="Fade in" value={fadeInDuration} onChange={setFadeInDuration} />
-                  <FadePicker label="Fade out" value={fadeOutDuration} onChange={setFadeOutDuration} />
-                  <button
-                    onClick={() => setLoop(!loop)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
-                      loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"
-                    )}
-                  >
-                    <Repeat className="w-3.5 h-3.5" /> Loop
-                  </button>
-                </div>
-
-                {/* Track B offset slider */}
-                {isLoaded && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Track B timing</span>
-                      <span className={cn(
-                        "font-mono text-xs px-2 py-0.5 rounded-md border",
-                        track2Offset === 0
-                          ? "border-border text-muted-foreground"
-                          : "border-primary/50 bg-primary/10 text-primary"
-                      )}>
-                        {track2Offset === 0 ? "in sync" : track2Offset > 0 ? `B +${track2Offset.toFixed(2)}s` : `B ${track2Offset.toFixed(2)}s`}
-                      </span>
-                      {track2Offset !== 0 && (
-                        <button
-                          onClick={() => setTrack2Offset(0)}
-                          className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-muted-foreground shrink-0">B earlier ←</span>
-                      <Slider
-                        min={-10} max={10} step={0.25}
-                        value={[track2Offset]}
-                        onValueChange={([v]) => setTrack2Offset(v)}
-                        className="flex-1"
-                      />
-                      <span className="text-[10px] text-muted-foreground shrink-0">→ B later</span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Slide to align Track B with Track A — drag right to delay B, drag left to start B earlier.
-                    </p>
+              <div className="flex flex-wrap gap-4 mb-4 pb-4 border-b border-border">
+                <FadePicker label="Fade in" value={fadeInDuration} onChange={setFadeInDuration} />
+                <FadePicker label="Fade out" value={fadeOutDuration} onChange={setFadeOutDuration} />
+                <button
+                  onClick={() => setLoop(!loop)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                    loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                  )}
+                >
+                  <Repeat className="w-3.5 h-3.5" /> Loop
+                </button>
+                {/* Click track */}
+                <button
+                  onClick={() => setClickEnabled(!clickEnabled)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                    clickEnabled ? "bg-orange-500/15 border-orange-500 text-orange-500" : "border-border text-muted-foreground hover:border-orange-500/50"
+                  )}
+                >
+                  <Music2 className="w-3.5 h-3.5" /> Click
+                </button>
+                {clickEnabled && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">BPM</span>
+                    <input
+                      type="number"
+                      min={20} max={300} value={bpm}
+                      onChange={e => setBpm(Math.max(20, Math.min(300, parseInt(e.target.value) || 120)))}
+                      className="w-16 h-7 px-2 rounded-md border border-border bg-background text-xs font-mono text-center"
+                    />
                   </div>
                 )}
               </div>
@@ -484,15 +551,15 @@ export default function Mixer() {
           {state === "done" && recordedBlob && (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-6 space-y-4">
               <h2 className="font-semibold text-lg">Save Your Mix</h2>
-              <p className="text-sm text-muted-foreground">Give your mix a name to add it to your library, or download it directly.</p>
+              <p className="text-sm text-muted-foreground">Give your mix a name to add it to your library, or download it.</p>
               <div className="space-y-2">
                 <Label htmlFor="mix-title">Mix Title</Label>
                 <Input
                   id="mix-title"
                   placeholder="e.g. Verse Jam — May 21"
                   value={mixTitle}
-                  onChange={(e) => setMixTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSaveMix()}
+                  onChange={e => setMixTitle(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSaveMix()}
                 />
               </div>
               <div className="flex gap-3 flex-wrap">
@@ -504,16 +571,13 @@ export default function Mixer() {
                   variant="outline"
                   className="gap-2"
                   onClick={() => {
-                    const ext = recordedBlob.type.includes("mp4") ? "m4a" : "webm";
                     const url = URL.createObjectURL(recordedBlob);
                     const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${mixTitle.trim() || "mix"}.${ext}`;
-                    a.click();
+                    a.href = url; a.download = `${mixTitle.trim() || "mix"}.wav`; a.click();
                     setTimeout(() => URL.revokeObjectURL(url), 5000);
                   }}
                 >
-                  <Download className="w-4 h-4" /> Download
+                  <Download className="w-4 h-4" /> Download WAV
                 </Button>
                 <Button variant="ghost" onClick={() => reset()} disabled={isSaving} className="ml-auto text-muted-foreground">Record Again</Button>
               </div>
