@@ -151,12 +151,13 @@ export default function Mixer() {
     track1Volume, track2Volume, track1Pan, track2Pan,
     track1Mute, track2Mute, track1Solo, track2Solo,
     fadeInDuration, fadeOutDuration, loop,
+    track2Offset,
     setTrack1Volume, setTrack2Volume,
     setTrack1Pan, setTrack2Pan,
     setTrack1Mute, setTrack2Mute,
     setTrack1Solo, setTrack2Solo,
     setFadeInDuration, setFadeOutDuration,
-    setLoop,
+    setLoop, setTrack2Offset,
     loadTracks, play, stop, startRecording, stopRecording, reset,
   } = useAudioMixer();
 
@@ -389,18 +390,58 @@ export default function Mixer() {
 
             {/* Fade + loop controls */}
             {(state === "ready" || state === "idle") && (
-              <div className="flex flex-wrap gap-4 mb-5 pb-5 border-b border-border">
-                <FadePicker label="Fade in" value={fadeInDuration} onChange={setFadeInDuration} />
-                <FadePicker label="Fade out" value={fadeOutDuration} onChange={setFadeOutDuration} />
-                <button
-                  onClick={() => setLoop(!loop)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
-                    loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"
-                  )}
-                >
-                  <Repeat className="w-3.5 h-3.5" /> Loop
-                </button>
+              <div className="space-y-4 mb-5 pb-5 border-b border-border">
+                <div className="flex flex-wrap gap-4">
+                  <FadePicker label="Fade in" value={fadeInDuration} onChange={setFadeInDuration} />
+                  <FadePicker label="Fade out" value={fadeOutDuration} onChange={setFadeOutDuration} />
+                  <button
+                    onClick={() => setLoop(!loop)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-colors",
+                      loop ? "bg-primary/15 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                    )}
+                  >
+                    <Repeat className="w-3.5 h-3.5" /> Loop
+                  </button>
+                </div>
+
+                {/* Track B offset slider */}
+                {isLoaded && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Track B timing</span>
+                      <span className={cn(
+                        "font-mono text-xs px-2 py-0.5 rounded-md border",
+                        track2Offset === 0
+                          ? "border-border text-muted-foreground"
+                          : "border-primary/50 bg-primary/10 text-primary"
+                      )}>
+                        {track2Offset === 0 ? "in sync" : track2Offset > 0 ? `B +${track2Offset.toFixed(2)}s` : `B ${track2Offset.toFixed(2)}s`}
+                      </span>
+                      {track2Offset !== 0 && (
+                        <button
+                          onClick={() => setTrack2Offset(0)}
+                          className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground shrink-0">B earlier ←</span>
+                      <Slider
+                        min={-10} max={10} step={0.25}
+                        value={[track2Offset]}
+                        onValueChange={([v]) => setTrack2Offset(v)}
+                        className="flex-1"
+                      />
+                      <span className="text-[10px] text-muted-foreground shrink-0">→ B later</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Slide to align Track B with Track A — drag right to delay B, drag left to start B earlier.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

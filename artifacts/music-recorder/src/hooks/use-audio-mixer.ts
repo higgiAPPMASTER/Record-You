@@ -25,6 +25,8 @@ interface UseAudioMixerResult {
   fadeOutDuration: number;
   loop: boolean;
   elapsedTime: number;
+  /** Seconds Track B is shifted vs Track A. Positive = B starts later; negative = B starts earlier. */
+  track2Offset: number;
   setTrack1Volume: (v: number) => void;
   setTrack2Volume: (v: number) => void;
   setTrack1Pan: (v: number) => void;
@@ -36,6 +38,7 @@ interface UseAudioMixerResult {
   setFadeInDuration: (v: number) => void;
   setFadeOutDuration: (v: number) => void;
   setLoop: (v: boolean) => void;
+  setTrack2Offset: (v: number) => void;
   loadTracks: (track1: Track, track2: Track) => Promise<void>;
   play: () => void;
   stop: () => void;
@@ -138,6 +141,16 @@ export function useAudioMixer(): UseAudioMixerResult {
   const pan1Ref = useRef<StereoPannerNode | null>(null);
   const pan2Ref = useRef<StereoPannerNode | null>(null);
 
+  // Track B time offset (seconds; positive = B starts later, negative = B starts earlier)
+  const [track2Offset, setTrack2OffsetState] = useState(0);
+  const t2OffsetRef = useRef(0);
+  const offsetTimerRef = useRef<number | null>(null);
+
+  const setTrack2Offset = useCallback((v: number) => {
+    t2OffsetRef.current = v;
+    setTrack2OffsetState(v);
+  }, []);
+
   // PCM capture (replaces MediaRecorder — works on iOS Safari)
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const silentGainRef = useRef<GainNode | null>(null);
@@ -189,6 +202,7 @@ export function useAudioMixer(): UseAudioMixerResult {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (playTimeoutRef.current) { clearTimeout(playTimeoutRef.current); playTimeoutRef.current = null; }
     if (fadeOutTimeoutRef.current) { clearTimeout(fadeOutTimeoutRef.current); fadeOutTimeoutRef.current = null; }
+    if (offsetTimerRef.current) { clearTimeout(offsetTimerRef.current); offsetTimerRef.current = null; }
   }, []);
 
   const startElapsedTimer = useCallback(() => {
@@ -364,8 +378,18 @@ export function useAudioMixer(): UseAudioMixerResult {
       applyGain2();
     }
 
-    el1.play();
-    el2.play();
+    const offset = t2OffsetRef.current;
+    if (offset > 0) {
+      el1.play();
+      offsetTimerRef.current = window.setTimeout(() => { el2.play(); offsetTimerRef.current = null; }, offset * 1000);
+    } else if (offset < 0) {
+      el2.currentTime = Math.min(Math.abs(offset), el2.duration || 9999);
+      el1.play();
+      el2.play();
+    } else {
+      el1.play();
+      el2.play();
+    }
     setState("playing");
     setElapsedTime(0);
     clearTimers();
@@ -488,11 +512,23 @@ export function useAudioMixer(): UseAudioMixerResult {
     setState("recording");
     setElapsedTime(0);
 
-    // Start playback (fire-and-forget — no await, keeps us in the user gesture window)
+    // Start playback with offset applied (fire-and-forget, stays in user gesture window)
+    const offset = t2OffsetRef.current;
     el1.currentTime = 0;
     el2.currentTime = 0;
-    el1.play().catch(() => {});
-    el2.play().catch(() => {});
+    if (offset > 0) {
+      // B starts later — silence fills the gap in the WAV capture
+      el1.play().catch(() => {});
+      offsetTimerRef.current = window.setTimeout(() => { el2.play().catch(() => {}); offsetTimerRef.current = null; }, offset * 1000);
+    } else if (offset < 0) {
+      // B is already ahead — skip into it
+      el2.currentTime = Math.min(Math.abs(offset), el2.duration || 9999);
+      el1.play().catch(() => {});
+      el2.play().catch(() => {});
+    } else {
+      el1.play().catch(() => {});
+      el2.play().catch(() => {});
+    }
 
     startElapsedTimer();
 
@@ -537,12 +573,13 @@ export function useAudioMixer(): UseAudioMixerResult {
     track1Volume, track2Volume, track1Pan, track2Pan,
     track1Mute, track2Mute, track1Solo, track2Solo,
     fadeInDuration, fadeOutDuration, loop,
+    track2Offset,
     setTrack1Volume, setTrack2Volume,
     setTrack1Pan, setTrack2Pan,
     setTrack1Mute, setTrack2Mute,
     setTrack1Solo, setTrack2Solo,
     setFadeInDuration, setFadeOutDuration,
-    setLoop,
+    setLoop, setTrack2Offset,
     loadTracks, play, stop, startRecording, stopRecording, reset,
   };
 }

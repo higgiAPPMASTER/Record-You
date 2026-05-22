@@ -87,6 +87,7 @@ export default function MixerScreen() {
   const [fadeOut, setFadeOut] = useState(0);
   const [loadingSlot, setLoadingSlot] = useState<Slot | null>(null);
   const [pickerOpen, setPickerOpen] = useState<Slot | null>(null);
+  const [track2Offset, setTrack2Offset] = useState(0); // seconds; + = B later, - = B earlier
 
   // Recording state
   const recordingRef = useRef<Audio.Recording | null>(null);
@@ -179,14 +180,28 @@ export default function MixerScreen() {
       await a?.setIsLoopingAsync(true).catch(() => {});
       await b?.setIsLoopingAsync(true).catch(() => {});
     }
-    if (fadeIn > 0) {
-      if (a) { await a.setPositionAsync(0); await a.setVolumeAsync(0); await a.playAsync(); }
-      if (b) { await b.setPositionAsync(0); await b.setVolumeAsync(0); await b.playAsync(); }
-      if (a) fadeIntervals.current.push(rampVolume(a, 0, effectiveVolume("a"), fadeIn * 1000));
-      if (b) fadeIntervals.current.push(rampVolume(b, 0, effectiveVolume("b"), fadeIn * 1000));
+
+    // Apply Track B time offset
+    const offset = track2Offset;
+    const startB = async () => {
+      if (!b) return;
+      const bPos = offset < 0 ? Math.abs(offset) * 1000 : 0; // skip into B if B is earlier
+      await b.setPositionAsync(bPos);
+      if (fadeIn > 0) { await b.setVolumeAsync(0); await b.playAsync(); fadeIntervals.current.push(rampVolume(b, 0, effectiveVolume("b"), fadeIn * 1000)); }
+      else { await b.setVolumeAsync(effectiveVolume("b")); await b.playAsync(); }
+    };
+
+    if (a) {
+      await a.setPositionAsync(0);
+      if (fadeIn > 0) { await a.setVolumeAsync(0); await a.playAsync(); fadeIntervals.current.push(rampVolume(a, 0, effectiveVolume("a"), fadeIn * 1000)); }
+      else { await a.setVolumeAsync(effectiveVolume("a")); await a.playAsync(); }
+    }
+
+    if (offset > 0) {
+      // B starts later
+      setTimeout(() => { startB().catch(() => {}); }, offset * 1000);
     } else {
-      if (a) { await a.setPositionAsync(0); await a.setVolumeAsync(effectiveVolume("a")); await a.playAsync(); }
-      if (b) { await b.setPositionAsync(0); await b.setVolumeAsync(effectiveVolume("b")); await b.playAsync(); }
+      await startB();
     }
   };
 
@@ -393,6 +408,17 @@ export default function MixerScreen() {
       borderWidth: 1, borderColor: colors.border,
     },
     optBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
+    offsetRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+    nudgeBtn: {
+      paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8,
+      borderWidth: 1, borderColor: colors.border, alignItems: "center",
+    },
+    nudgeBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
+    offsetDisplay: {
+      flex: 1, alignItems: "center", paddingVertical: 6,
+      borderRadius: 8, borderWidth: 1,
+    },
+    offsetDisplayText: { fontSize: 13, fontFamily: "Inter_700Bold" },
     transport: { flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 4 },
     bigBtn: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
     recDot: {
@@ -502,6 +528,38 @@ export default function MixerScreen() {
       <ScrollView contentContainerStyle={s.scroll}>
         {renderSlot("a")}
         {renderSlot("b")}
+
+        {/* Track B timing nudge */}
+        {mode !== "saving" && (tracks.a.sound || tracks.b.sound) && (
+          <View style={s.globalCard}>
+            <Text style={s.globalLabel}>Track B Timing</Text>
+            <View style={s.offsetRow}>
+              <Pressable style={s.nudgeBtn} onPress={() => setTrack2Offset((v) => Math.max(-10, Math.round((v - 1) * 4) / 4))}>
+                <Text style={s.nudgeBtnText}>−1s</Text>
+              </Pressable>
+              <Pressable style={s.nudgeBtn} onPress={() => setTrack2Offset((v) => Math.max(-10, Math.round((v - 0.25) * 4) / 4))}>
+                <Text style={s.nudgeBtnText}>−¼</Text>
+              </Pressable>
+              <Pressable
+                style={[s.offsetDisplay, { borderColor: track2Offset === 0 ? colors.border : colors.primary }]}
+                onPress={() => setTrack2Offset(0)}
+              >
+                <Text style={[s.offsetDisplayText, { color: track2Offset === 0 ? colors.mutedForeground : colors.primary }]}>
+                  {track2Offset === 0 ? "in sync" : track2Offset > 0 ? `B +${track2Offset.toFixed(2)}s` : `B ${track2Offset.toFixed(2)}s`}
+                </Text>
+              </Pressable>
+              <Pressable style={s.nudgeBtn} onPress={() => setTrack2Offset((v) => Math.min(10, Math.round((v + 0.25) * 4) / 4))}>
+                <Text style={s.nudgeBtnText}>+¼</Text>
+              </Pressable>
+              <Pressable style={s.nudgeBtn} onPress={() => setTrack2Offset((v) => Math.min(10, Math.round((v + 1) * 4) / 4))}>
+                <Text style={s.nudgeBtnText}>+1s</Text>
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+              Slide B earlier or later vs Track A. Tap the display to reset. Use Preview to check alignment.
+            </Text>
+          </View>
+        )}
 
         {/* Save mix card (after recording) */}
         {mode === "saving" && (
