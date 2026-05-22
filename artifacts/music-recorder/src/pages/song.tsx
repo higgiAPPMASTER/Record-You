@@ -104,7 +104,7 @@ export default function SongDetail() {
     if (!blob) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const ext = song.mimeType.includes("m4a") || song.mimeType.includes("mp4") ? "m4a" : "webm";
+    const ext = song.mimeType.includes("m4a") || song.mimeType.includes("mp4") ? "m4a" : "wav";
     a.href = url;
     a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
     a.click();
@@ -150,7 +150,7 @@ export default function SongDetail() {
         cloudId = created.id;
 
         const formData = new FormData();
-        formData.append("audio", blob, "recording.webm");
+        formData.append("audio", blob, "recording.wav");
         formData.append("duration", song.duration.toString());
         if (song.waveform && song.waveform.length > 0) {
           formData.append("waveform", JSON.stringify(song.waveform));

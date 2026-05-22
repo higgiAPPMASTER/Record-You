@@ -115,7 +115,7 @@ export default function Shared() {
             </div>
             <a
               href={song.audioUrl}
-              download={`${song.title.replace(/[^a-z0-9]/gi, "_")}.webm`}
+              download={`${song.title.replace(/[^a-z0-9]/gi, "_")}.wav`}
               className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-primary"
             >
               <Download className="w-3.5 h-3.5" /> Download

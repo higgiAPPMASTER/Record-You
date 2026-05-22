@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListTakesQueryKey } from "@workspace/api-client-react";
+import { pcmToWav } from "@/lib/wav-encoder";
 
 const NAME_KEY = "ry:take-author";
+const BUFFER_SIZE = 4096;
 
 type Status = "idle" | "recording" | "review" | "uploading";
 
@@ -21,9 +23,11 @@ export function TakeRecorder({ songId, originalAudioUrl }: Props) {
   const originalRef = useRef<HTMLAudioElement | null>(null);
   const previewRef = useRef<HTMLAudioElement | null>(null);
   const previewOrigRef = useRef<HTMLAudioElement | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const samplesRef = useRef<Float32Array[]>([]);
 
   const [status, setStatus] = useState<Status>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -37,6 +41,8 @@ export function TakeRecorder({ songId, originalAudioUrl }: Props) {
   useEffect(() => () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    processorRef.current?.disconnect();
+    audioContextRef.current?.close();
   }, [blobUrl]);
 
   const start = async () => {
@@ -45,35 +51,40 @@ export function TakeRecorder({ songId, originalAudioUrl }: Props) {
       return;
     }
     try {
+      samplesRef.current = [];
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
       });
       streamRef.current = stream;
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus" : "audio/webm";
-      const rec = new MediaRecorder(stream, { mimeType: mime });
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      rec.onstop = () => {
-        const b = new Blob(chunksRef.current, { type: mime });
-        const url = URL.createObjectURL(b);
-        setBlob(b);
-        setBlobUrl(url);
-        setStatus("review");
-        streamRef.current?.getTracks().forEach((t) => t.stop());
+
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = ctx;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(BUFFER_SIZE, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        samplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
       };
+
+      source.connect(processor);
+      processor.connect(ctx.destination);
 
       const audio = originalRef.current;
       if (audio) { audio.currentTime = 0; await audio.play(); }
-      rec.start();
-      recorderRef.current = rec;
+
       setStatus("recording");
       setElapsed(0);
       const t0 = performance.now();
       const tick = () => {
-        if (recorderRef.current?.state !== "recording") return;
-        setElapsed((performance.now() - t0) / 1000);
-        requestAnimationFrame(tick);
+        if (status !== "recording" && processorRef.current) {
+          setElapsed((performance.now() - t0) / 1000);
+          requestAnimationFrame(tick);
+        } else if (processorRef.current) {
+          setElapsed((performance.now() - t0) / 1000);
+          requestAnimationFrame(tick);
+        }
       };
       requestAnimationFrame(tick);
     } catch (err) {
@@ -82,8 +93,29 @@ export function TakeRecorder({ songId, originalAudioUrl }: Props) {
   };
 
   const stop = () => {
-    recorderRef.current?.stop();
+    const ctx = audioContextRef.current;
+    const processor = processorRef.current;
+    if (!ctx || !processor) return;
+
+    processor.disconnect();
+    processor.onaudioprocess = null;
+    processorRef.current = null;
+    streamRef.current?.getTracks().forEach((t) => t.stop());
     originalRef.current?.pause();
+
+    const chunks = samplesRef.current;
+    const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+    const flat = new Float32Array(totalLen);
+    let off = 0;
+    for (const chunk of chunks) { flat.set(chunk, off); off += chunk.length; }
+
+    const wav = pcmToWav(flat, ctx.sampleRate);
+    const url = URL.createObjectURL(wav);
+    setBlob(wav);
+    setBlobUrl(url);
+    setStatus("review");
+    ctx.close();
+    audioContextRef.current = null;
   };
 
   const togglePreview = async () => {
@@ -111,7 +143,7 @@ export function TakeRecorder({ songId, originalAudioUrl }: Props) {
     setStatus("uploading");
     try {
       const fd = new FormData();
-      fd.append("audio", blob, "take.webm");
+      fd.append("audio", blob, "take.wav");
       fd.append("author", author.trim());
       fd.append("duration", String(elapsed));
       const res = await fetch(`/api/songs/${songId}/takes`, { method: "POST", body: fd });

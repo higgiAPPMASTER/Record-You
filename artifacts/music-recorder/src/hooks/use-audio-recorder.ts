@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { pcmToWav } from '@/lib/wav-encoder';
 
 interface UseAudioRecorderResult {
   isRecording: boolean;
@@ -14,6 +15,8 @@ interface UseAudioRecorderResult {
   reset: () => void;
 }
 
+const BUFFER_SIZE = 4096;
+
 export function useAudioRecorder(): UseAudioRecorderResult {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -22,10 +25,12 @@ export function useAudioRecorder(): UseAudioRecorderResult {
   const [error, setError] = useState<Error | null>(null);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const timerRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const samplesRef = useRef<Float32Array[]>([]);
+  const isPausedRef = useRef(false);
+  const timerRef = useRef<number | null>(null);
 
   const startTimer = useCallback(() => {
     timerRef.current = window.setInterval(() => {
@@ -45,6 +50,8 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       setError(null);
       setAudioBlob(null);
       setRecordingTime(0);
+      samplesRef.current = [];
+      isPausedRef.current = false;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -53,25 +60,22 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       audioContextRef.current = audioContext;
 
       const source = audioContext.createMediaStreamSource(stream);
+
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
       setAnalyserNode(analyser);
 
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-
-      const chunks: BlobPart[] = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+      const processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+      processorRef.current = processor;
+      processor.onaudioprocess = (e) => {
+        if (!isPausedRef.current) {
+          samplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        }
       };
+      source.connect(processor);
+      processor.connect(audioContext.destination);
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-        setAudioBlob(blob);
-      };
-
-      mediaRecorder.start(100);
       setIsRecording(true);
       setIsPaused(false);
       startTimer();
@@ -81,42 +85,50 @@ export function useAudioRecorder(): UseAudioRecorderResult {
   }, [startTimer]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setIsPaused(false);
-      stopTimer();
+    const ctx = audioContextRef.current;
+    const processor = processorRef.current;
+    if (!ctx || !processor) return;
 
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-      setAnalyserNode(null);
-    }
+    processor.disconnect();
+    processor.onaudioprocess = null;
+    processorRef.current = null;
+
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+
+    const chunks = samplesRef.current;
+    const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+    const flat = new Float32Array(totalLen);
+    let off = 0;
+    for (const chunk of chunks) { flat.set(chunk, off); off += chunk.length; }
+
+    setAudioBlob(pcmToWav(flat, ctx.sampleRate));
+    ctx.close();
+    audioContextRef.current = null;
+
+    setIsRecording(false);
+    setIsPaused(false);
+    setAnalyserNode(null);
+    stopTimer();
   }, [stopTimer]);
 
   const pauseRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.pause();
-      setIsPaused(true);
-      stopTimer();
-    }
+    isPausedRef.current = true;
+    setIsPaused(true);
+    stopTimer();
   }, [stopTimer]);
 
   const resumeRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
-      mediaRecorderRef.current.resume();
-      setIsPaused(false);
-      startTimer();
-    }
+    isPausedRef.current = false;
+    setIsPaused(false);
+    startTimer();
   }, [startTimer]);
 
   const reset = useCallback(() => {
     setAudioBlob(null);
     setRecordingTime(0);
     setError(null);
+    samplesRef.current = [];
   }, []);
 
   return {

@@ -139,7 +139,7 @@ export default function Home() {
         duration: s.duration ?? null,
         createdAt: new Date(s.createdAt).getTime(),
         waveform: s.waveformData ?? null,
-        mimeType: "audio/webm",
+        mimeType: "audio/wav",
         audioUrl: s.audioUrl ?? null,
         cloudId: s.id,
       }));
@@ -212,7 +212,7 @@ export default function Home() {
     if (!blob) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const ext = song.mimeType.includes("m4a") || song.mimeType.includes("mp4") ? "m4a" : "webm";
+    const ext = song.mimeType.includes("m4a") || song.mimeType.includes("mp4") ? "m4a" : "wav";
     a.href = url;
     a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
     a.click();

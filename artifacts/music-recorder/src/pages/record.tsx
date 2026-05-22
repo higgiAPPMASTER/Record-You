@@ -74,7 +74,7 @@ export default function Record() {
         notes: notes.trim(),
         duration: recordingTime,
         blob: audioBlob,
-        mimeType: audioBlob.type || "audio/webm",
+        mimeType: "audio/wav",
         waveform: peaks.length > 0 ? peaks : null,
       });
 
