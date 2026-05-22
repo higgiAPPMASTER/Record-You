@@ -303,7 +303,7 @@ export default function Mixer() {
   } = useAudioMixer();
 
   const isLoaded = !["idle", "loading"].includes(state);
-  const isActive = ["playing", "recording"].includes(state);
+  const isActive = state === "playing";
 
   const setTrackKey = (i: number, key: string | null) => {
     setTrackKeys(prev => prev.map((k, idx) => idx === i ? key : k));
@@ -454,14 +454,14 @@ export default function Mixer() {
             {/* Status + timer */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                {state === "recording" && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />}
+                {state === "recording" && <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />}
                 {state === "playing" && <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />}
                 <span className="text-sm font-medium text-muted-foreground">
                   {state === "idle" ? "Select tracks above"
                     : state === "loading" ? "Loading tracks..."
                     : state === "ready" ? "Ready"
                     : state === "playing" ? "Previewing..."
-                    : state === "recording" ? "Recording mix..."
+                    : state === "recording" ? "Rendering mix…"
                     : "Mix captured"}
                 </span>
               </div>
@@ -480,7 +480,7 @@ export default function Mixer() {
             {isActive && mixDuration > 0 && (
               <div className="w-full h-1.5 bg-muted rounded-full mb-4 overflow-hidden">
                 <div
-                  className={cn("h-full rounded-full transition-all", state === "recording" ? "bg-red-500" : "bg-primary")}
+                  className="h-full rounded-full transition-all bg-primary"
                   style={{ width: `${Math.min((elapsedTime / mixDuration) * 100, 100)}%` }}
                 />
               </div>
@@ -538,7 +538,7 @@ export default function Mixer() {
                     <Play className="w-4 h-4" /> Preview Mix
                   </Button>
                   <Button onClick={startRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
-                    <span className="w-3 h-3 rounded-full bg-white" /> Record Mix
+                    <Disc className="w-4 h-4" /> Render Mix
                   </Button>
                   <Button variant="ghost" onClick={handleReset} className="ml-auto text-muted-foreground">Start Over</Button>
                 </>
@@ -549,8 +549,8 @@ export default function Mixer() {
                 </Button>
               )}
               {state === "recording" && (
-                <Button onClick={stopRecording} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
-                  <Square className="w-4 h-4" /> Stop Recording
+                <Button onClick={stopRecording} variant="outline" className="gap-2">
+                  <Square className="w-4 h-4" /> Cancel
                 </Button>
               )}
               {state === "done" && !recordedBlob && (

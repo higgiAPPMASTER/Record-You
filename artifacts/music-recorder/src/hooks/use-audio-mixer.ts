@@ -84,7 +84,7 @@ function encodePCMasWAV(left: Float32Array[], right: Float32Array[], sampleRate:
 }
 
 // ── Synthetic reverb impulse ──────────────────────────────────────────────────
-function createImpulse(ctx: AudioContext, durationSec = 1.5, decay = 3): AudioBuffer {
+function createImpulse(ctx: BaseAudioContext, durationSec = 1.5, decay = 3): AudioBuffer {
   const sr = ctx.sampleRate, len = Math.floor(sr * durationSec);
   const b = ctx.createBuffer(2, len, sr);
   for (let c = 0; c < 2; c++) {
@@ -92,6 +92,106 @@ function createImpulse(ctx: AudioContext, durationSec = 1.5, decay = 3): AudioBu
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
   }
   return b;
+}
+
+// ── Offline mix renderer (no microphone — reads only the loaded files) ────────
+async function offlineMix(params: {
+  audioUrls: string[];
+  trackStates: TrackState[];
+  duration: number;
+  sampleRate: number;
+  fadeIn: number;
+  fadeOut: number;
+  clickEnabled: boolean;
+  bpm: number;
+}): Promise<Blob> {
+  const { audioUrls, trackStates, duration, sampleRate, fadeIn, fadeOut, clickEnabled, bpm } = params;
+  const totalSec = duration + 2; // extra 2 s for reverb tail
+  const offCtx = new OfflineAudioContext(2, Math.ceil(totalSec * sampleRate), sampleRate);
+
+  // Decode all audio files in parallel
+  const buffers = await Promise.all(audioUrls.map(async (url) => {
+    const res = await fetch(url);
+    const ab = await res.arrayBuffer();
+    return offCtx.decodeAudioData(ab);
+  }));
+
+  const impulse = createImpulse(offCtx);
+  const anySoloed = trackStates.some(t => t.soloed);
+
+  trackStates.forEach((state, i) => {
+    const audioBuf = buffers[i];
+    if (!audioBuf) return;
+    if (state.muted) return;
+    if (anySoloed && !state.soloed) return;
+
+    const src = offCtx.createBufferSource();
+    src.buffer = audioBuf;
+
+    const pan = offCtx.createStereoPanner();
+    pan.pan.value = state.pan;
+
+    const bass = offCtx.createBiquadFilter();
+    bass.type = "lowshelf"; bass.frequency.value = 200; bass.gain.value = state.eqBass;
+
+    const treble = offCtx.createBiquadFilter();
+    treble.type = "highshelf"; treble.frequency.value = 3000; treble.gain.value = state.eqTreble;
+
+    const convolver = offCtx.createConvolver();
+    convolver.buffer = impulse;
+
+    const reverbGain = offCtx.createGain(); reverbGain.gain.value = state.reverbWet;
+    const sumGain = offCtx.createGain(); sumGain.gain.value = 1;
+    const masterGain = offCtx.createGain();
+
+    const vol = state.volume;
+    if (fadeIn > 0) {
+      masterGain.gain.setValueAtTime(0, 0);
+      masterGain.gain.linearRampToValueAtTime(vol, fadeIn);
+    } else {
+      masterGain.gain.setValueAtTime(vol, 0);
+    }
+    if (fadeOut > 0 && duration > fadeOut) {
+      masterGain.gain.setValueAtTime(vol, Math.max(0, duration - fadeOut));
+      masterGain.gain.linearRampToValueAtTime(0, duration);
+    }
+
+    // Same graph structure as live playback
+    src.connect(pan).connect(bass).connect(treble).connect(sumGain);
+    treble.connect(convolver).connect(reverbGain).connect(sumGain);
+    sumGain.connect(masterGain).connect(offCtx.destination);
+
+    // Apply timing offset
+    const offset = state.offset;
+    if (offset >= 0) {
+      src.start(offset);
+    } else {
+      // Negative offset: skip into the buffer
+      src.start(0, Math.min(Math.abs(offset), audioBuf.duration));
+    }
+  });
+
+  // Click track (scheduled oscillators, same as live)
+  if (clickEnabled && bpm > 0) {
+    const beatInterval = 60 / Math.max(20, bpm);
+    let t = 0;
+    while (t < duration) {
+      const osc = offCtx.createOscillator();
+      const cg = offCtx.createGain();
+      osc.frequency.value = 1200;
+      cg.gain.setValueAtTime(0.4, t);
+      cg.gain.exponentialRampToValueAtTime(0.001, t + 0.018);
+      osc.connect(cg).connect(offCtx.destination);
+      osc.start(t);
+      osc.stop(t + 0.02);
+      t += beatInterval;
+    }
+  }
+
+  const rendered = await offCtx.startRendering();
+  const left = rendered.getChannelData(0);
+  const right = rendered.numberOfChannels > 1 ? rendered.getChannelData(1) : rendered.getChannelData(0);
+  return encodePCMasWAV([left], [right], sampleRate);
 }
 
 // ── Per-track audio node bundle ───────────────────────────────────────────────
@@ -130,7 +230,7 @@ export function useAudioMixer(): UseAudioMixerResult {
   const stateRef = useRef<MixerState>("idle");
   stateRef.current = state;
 
-  // Audio graph
+  // Audio graph (for preview playback)
   const ctxRef = useRef<AudioContext | null>(null);
   const nodesRef = useRef<TrackNodes[]>([]);
 
@@ -143,12 +243,8 @@ export function useAudioMixer(): UseAudioMixerResult {
   const nextClickTimeRef = useRef(0);
   const startTimeRef = useRef(0);
 
-  // PCM capture
-  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
-  const silentGainRef = useRef<GainNode | null>(null);
-  const pcmLeftRef = useRef<Float32Array[]>([]);
-  const pcmRightRef = useRef<Float32Array[]>([]);
-  const sampleRateRef = useRef(44100);
+  // Offline render cancellation
+  const renderCancelledRef = useRef(false);
 
   // ── Effective gain ──────────────────────────────────────────────────────────
   const effectiveGain = useCallback((i: number): number => {
@@ -172,7 +268,7 @@ export function useAudioMixer(): UseAudioMixerResult {
     nodesRef.current.forEach((_, i) => applyGain(i));
   }, [applyGain]);
 
-  // ── Click track ─────────────────────────────────────────────────────────────
+  // ── Click track (live preview only) ─────────────────────────────────────────
   const stopClick = useCallback(() => {
     if (clickIntervalRef.current) { clearInterval(clickIntervalRef.current); clickIntervalRef.current = null; }
   }, []);
@@ -217,16 +313,6 @@ export function useAudioMixer(): UseAudioMixerResult {
 
   const haltElements = useCallback(() => {
     nodesRef.current.forEach(n => { if (!n) return; n.el.pause(); n.el.currentTime = 0; });
-  }, []);
-
-  // ── PCM capture teardown ────────────────────────────────────────────────────
-  const finishCapture = useCallback((): Blob => {
-    const sp = scriptProcessorRef.current; const sg = silentGainRef.current;
-    if (sp) { sp.onaudioprocess = null; try { sp.disconnect(); } catch {} scriptProcessorRef.current = null; }
-    if (sg) { try { sg.disconnect(); } catch {} silentGainRef.current = null; }
-    const blob = encodePCMasWAV(pcmLeftRef.current, pcmRightRef.current, sampleRateRef.current);
-    pcmLeftRef.current = []; pcmRightRef.current = [];
-    return blob;
   }, []);
 
   // ── Track state update helper ───────────────────────────────────────────────
@@ -316,11 +402,8 @@ export function useAudioMixer(): UseAudioMixerResult {
         treble.gain.value = init.eqTreble;
         reverbGain.gain.value = init.reverbWet;
 
-        // Dry path: src → pan → bass → treble → sumGain
         src.connect(pan).connect(bass).connect(treble).connect(sumGain);
-        // Wet (reverb) path: treble → convolver → reverbGain → sumGain
         treble.connect(convolver).connect(reverbGain).connect(sumGain);
-        // sumGain → masterGain → destination
         sumGain.connect(masterGain).connect(ctx.destination);
 
         return { el, pan, bass, treble, convolver, reverbGain, sumGain, masterGain };
@@ -334,7 +417,6 @@ export function useAudioMixer(): UseAudioMixerResult {
       ctxRef.current = ctx;
       nodesRef.current = nodes;
       offsetTimersRef.current = new Array(infos.length).fill(null);
-      sampleRateRef.current = ctx.sampleRate;
       setTracks(initialTracks);
       setMixDuration(dur);
       setState("ready");
@@ -422,57 +504,54 @@ export function useAudioMixer(): UseAudioMixerResult {
     }
   }, [haltElements, applyAllGains, clearTimers]);
 
-  // ── startRecording ──────────────────────────────────────────────────────────
-  const startRecording = useCallback(async () => {
+  // ── startRecording — offline render, no microphone ──────────────────────────
+  const startRecording = useCallback(() => {
     const ctx = ctxRef.current; const nodes = nodesRef.current;
     if (!ctx || nodes.length === 0) return;
+
     haltElements(); clearTimers(); setError(null);
-    try {
-      if (ctx.state !== "running") await ctx.resume();
-    } catch {
-      setError("Could not start audio. Tap anywhere on the page first, then try again.");
-      setState("ready"); return;
-    }
-
-    // PCM capture via ScriptProcessorNode (works on iOS Safari)
-    const sp = ctx.createScriptProcessor(4096, 2, 2);
-    const silentGain = ctx.createGain(); silentGain.gain.value = 0;
-    pcmLeftRef.current = []; pcmRightRef.current = [];
-    sp.onaudioprocess = (e) => {
-      const inp = e.inputBuffer;
-      const l = inp.getChannelData(0);
-      const r = inp.numberOfChannels > 1 ? inp.getChannelData(1) : inp.getChannelData(0);
-      pcmLeftRef.current.push(new Float32Array(l));
-      pcmRightRef.current.push(new Float32Array(r));
-    };
-    nodes.forEach(n => n.masterGain.connect(sp));
-    sp.connect(silentGain); silentGain.connect(ctx.destination);
-    scriptProcessorRef.current = sp; silentGainRef.current = silentGain;
-
+    renderCancelledRef.current = false;
     setState("recording"); setElapsedTime(0);
-    _startElements(ctx, fadeInRef.current);
-    startElapsedTimer(); startClick(ctx);
 
-    playTimeoutRef.current = window.setTimeout(() => {
-      haltElements(); clearTimers();
-      const blob = finishCapture(); setRecordedBlob(blob); setState("done");
-    }, (mixDuration || 300) * 1000 + 500);
-  }, [mixDuration, haltElements, clearTimers, startElapsedTimer, startClick, finishCapture, _startElements]); // eslint-disable-line react-hooks/exhaustive-deps
+    const audioUrls = nodes.map(n => n.el.src);
+    const duration = mixDuration;
+    const sampleRate = ctx.sampleRate;
 
-  // ── stopRecording ───────────────────────────────────────────────────────────
+    offlineMix({
+      audioUrls,
+      trackStates: tracksRef.current,
+      duration,
+      sampleRate,
+      fadeIn: fadeInRef.current,
+      fadeOut: fadeOutRef.current,
+      clickEnabled: clickEnabledRef.current,
+      bpm: bpmRef.current,
+    }).then((blob) => {
+      if (renderCancelledRef.current) return;
+      setRecordedBlob(blob);
+      setState("done");
+    }).catch((err) => {
+      if (renderCancelledRef.current) return;
+      setError(err instanceof Error ? err.message : "Failed to render mix");
+      setState("ready");
+    });
+  }, [mixDuration, haltElements, clearTimers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── stopRecording — cancel the pending render ────────────────────────────────
   const stopRecording = useCallback(() => {
-    haltElements(); clearTimers();
-    const blob = finishCapture(); setRecordedBlob(blob); setState("done");
-  }, [haltElements, clearTimers, finishCapture]);
+    renderCancelledRef.current = true;
+    setState("ready"); setElapsedTime(0);
+  }, []);
 
   // ── reset ────────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
-    haltElements(); clearTimers(); finishCapture();
+    renderCancelledRef.current = true;
+    haltElements(); clearTimers();
     if (ctxRef.current) { ctxRef.current.close(); ctxRef.current = null; }
     nodesRef.current = []; tracksRef.current = []; offsetTimersRef.current = [];
     setTracks([]); setRecordedBlob(null); setElapsedTime(0); setMixDuration(0);
     setError(null); setState("idle");
-  }, [haltElements, clearTimers, finishCapture]);
+  }, [haltElements, clearTimers]);
 
   return {
     state, error, mixDuration, recordedBlob, elapsedTime,
