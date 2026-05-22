@@ -53,7 +53,7 @@ function TrackSelector({
   return (
     <div className="space-y-2">
       <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</Label>
-      <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+      <div className="space-y-1">
         {availableTracks.map((track) => {
           const isSelected = selectedKey === track.key;
           const isDisabled = disabledKeys.has(track.key);
