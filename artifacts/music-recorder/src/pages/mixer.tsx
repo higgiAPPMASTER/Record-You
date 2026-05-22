@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAudioMixer, type TrackState } from "@/hooks/use-audio-mixer";
 import { MixerWaveform } from "@/components/mixer-waveform";
+import { WaveformAligner } from "@/components/waveform-aligner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,10 +123,10 @@ function PanLabel(v: number) {
 }
 
 function TrackControls({
-  idx, track, label, color, audioUrl, isRecording,
+  idx, track, label, color, audioUrl, audioUrlA, isRecording,
   setVolume, setPan, setMuted, setSoloed, setOffset, setReverbWet, setEqBass, setEqTreble,
 }: {
-  idx: number; track: TrackState; label: string; color: string; audioUrl: string | null; isRecording: boolean;
+  idx: number; track: TrackState; label: string; color: string; audioUrl: string | null; audioUrlA: string | null; isRecording: boolean;
   setVolume: (v: number) => void; setPan: (v: number) => void;
   setMuted: (v: boolean) => void; setSoloed: (v: boolean) => void;
   setOffset: (v: number) => void; setReverbWet: (v: number) => void;
@@ -226,7 +227,7 @@ function TrackControls({
 
       {/* Offset (tracks > 0 only) */}
       {idx > 0 && (
-        <div className="border-t border-border pt-3 space-y-1">
+        <div className="border-t border-border pt-3 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Timing vs A</span>
             <span className={cn(
@@ -239,6 +240,16 @@ function TrackControls({
               <button onClick={() => setOffset(0)} className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 ml-auto">reset</button>
             )}
           </div>
+          {audioUrl && audioUrlA && (
+            <WaveformAligner
+              srcA={audioUrlA}
+              srcB={audioUrl}
+              color={color}
+              offset={track.offset}
+              onOffset={setOffset}
+              height={60}
+            />
+          )}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground shrink-0">earlier ←</span>
             <Slider min={-10} max={10} step={0.25} value={[track.offset]} onValueChange={([v]) => setOffset(v)} className="flex-1" />
@@ -423,6 +434,7 @@ export default function Mixer() {
                   label={`Track ${TRACK_LABELS[i]}`}
                   color={TRACK_COLORS[i]}
                   audioUrl={loadedAudioUrls[i] ?? null}
+                  audioUrlA={loadedAudioUrls[0] ?? null}
                   isRecording={state === "recording"}
                   setVolume={v => setTrackVolume(i, v)}
                   setPan={v => setTrackPan(i, v)}
