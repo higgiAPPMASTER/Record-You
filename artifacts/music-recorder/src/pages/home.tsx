@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useListSongs, useDeleteSong, getListSongsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag, Cloud, HardDrive } from "lucide-react";
+import { ImportAudioButton } from "@/components/import-audio-button";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -236,12 +237,15 @@ export default function Home() {
           <h1 className="text-4xl font-bold tracking-tight mb-2">Library</h1>
           <p className="text-muted-foreground text-lg">Your recordings — device + cloud.</p>
         </div>
-        <Button asChild size="lg" className="rounded-full px-8 gap-2 font-medium">
-          <Link href="/record">
-            <Mic className="w-5 h-5" />
-            New Recording
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <ImportAudioButton onImported={() => setLocalSongs(listLocalSongs())} />
+          <Button asChild size="lg" className="rounded-full px-8 gap-2 font-medium">
+            <Link href="/record">
+              <Mic className="w-5 h-5" />
+              New Recording
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {songs.length > 0 && (

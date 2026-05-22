@@ -77,7 +77,7 @@ export async function saveLocalSong(input: SaveSongInput): Promise<LocalSong> {
   }
 
   const id = randId();
-  const ext = input.mimeType.includes("m4a") || input.mimeType.includes("mp4") ? "m4a" : "webm";
+  const ext = input.mimeType.includes("m4a") || input.mimeType.includes("mp4") ? "m4a" : "aac";
   const dir = await ensureDir();
   const filename = `${id}.${ext}`;
   const dest = `${dir}${filename}`;

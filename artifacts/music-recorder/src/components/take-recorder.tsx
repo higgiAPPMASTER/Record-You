@@ -78,13 +78,9 @@ export function TakeRecorder({ songId, originalAudioUrl }: Props) {
       setElapsed(0);
       const t0 = performance.now();
       const tick = () => {
-        if (status !== "recording" && processorRef.current) {
-          setElapsed((performance.now() - t0) / 1000);
-          requestAnimationFrame(tick);
-        } else if (processorRef.current) {
-          setElapsed((performance.now() - t0) / 1000);
-          requestAnimationFrame(tick);
-        }
+        if (!processorRef.current) return;
+        setElapsed((performance.now() - t0) / 1000);
+        requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     } catch (err) {

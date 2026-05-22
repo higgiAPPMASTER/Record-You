@@ -5,6 +5,8 @@ import {
   Play, Square, Disc, Loader2, Check, Volume2,
   SlidersHorizontal, Repeat, VolumeX, Zap, Download, Music2, Wand2,
 } from "lucide-react";
+import { ImportAudioButton } from "@/components/import-audio-button";
+import { wavBlobToMp3 } from "@/lib/mp3-encoder";
 import { useAudioMixer, type TrackState } from "@/hooks/use-audio-mixer";
 import { MixerWaveform } from "@/components/mixer-waveform";
 import { WaveformAligner } from "@/components/waveform-aligner";
@@ -16,6 +18,27 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { listLocalSongs, getLocalAudioUrl, type LocalSong } from "@/lib/local-songs";
 import { getListSongsQueryKey, getGetSongStatsQueryKey, useCreateSong } from "@workspace/api-client-react";
+
+const MIXER_SESSION_KEY = "ry:mixer-session";
+
+interface MixerSession {
+  trackCount: number;
+  trackKeys: (string | null)[];
+  fadeIn: number;
+  fadeOut: number;
+  loop: boolean;
+  clickEnabled: boolean;
+  bpm: number;
+  recordingMode: "closed" | "open";
+  perTrack: Array<{ volume: number; pan: number; muted: boolean; soloed: boolean; offset: number; reverbWet: number; eqBass: number; eqTreble: number }>;
+}
+
+function readSession(): Partial<MixerSession> {
+  try { return JSON.parse(localStorage.getItem(MIXER_SESSION_KEY) ?? "{}"); } catch { return {}; }
+}
+function writeSession(s: MixerSession) {
+  try { localStorage.setItem(MIXER_SESSION_KEY, JSON.stringify(s)); } catch {}
+}
 
 const TRACK_LABELS = ["A", "B", "C", "D"];
 const TRACK_COLORS = [
@@ -132,6 +155,21 @@ function TrackControls({
   setOffset: (v: number) => void; setReverbWet: (v: number) => void;
   setEqBass: (v: number) => void; setEqTreble: (v: number) => void;
 }) {
+  const handleNormalize = async () => {
+    if (!audioUrl) return;
+    try {
+      const ctx = new AudioContext();
+      const ab = await (await fetch(audioUrl)).arrayBuffer();
+      const buf = await ctx.decodeAudioData(ab);
+      await ctx.close();
+      let peak = 0;
+      for (let c = 0; c < buf.numberOfChannels; c++) {
+        const d = buf.getChannelData(c);
+        for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > peak) peak = v; }
+      }
+      if (peak > 0) setVolume(Math.min(1, parseFloat((0.98 / peak).toFixed(3))));
+    } catch { /* silent */ }
+  };
   const [showFx, setShowFx] = useState(false);
 
   return (
@@ -160,6 +198,15 @@ function TrackControls({
           >
             <Zap className="w-3 h-3" /> S
           </button>
+          {audioUrl && (
+            <button
+              onClick={handleNormalize}
+              title="Auto-set volume so peak = -0.2 dB"
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors border-border text-muted-foreground hover:border-primary/50 hover:text-primary"
+            >
+              <Volume2 className="w-3 h-3" /> Norm
+            </button>
+          )}
           <button
             onClick={() => setShowFx(!showFx)}
             className={cn(
@@ -261,6 +308,33 @@ function TrackControls({
   );
 }
 
+function MixMp3Button({ blob, title }: { blob: Blob; title: string }) {
+  const [encoding, setEncoding] = useState(false);
+  const { toast } = useToast();
+  return (
+    <Button
+      variant="outline"
+      className="gap-2"
+      disabled={encoding}
+      onClick={async () => {
+        setEncoding(true);
+        try {
+          const mp3 = await wavBlobToMp3(blob);
+          const url = URL.createObjectURL(mp3);
+          const a = document.createElement("a");
+          a.href = url; a.download = `${title.trim() || "mix"}.mp3`; a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+        } catch {
+          toast({ title: "MP3 conversion failed", description: "Download as WAV instead.", variant: "destructive" });
+        } finally { setEncoding(false); }
+      }}
+    >
+      {encoding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+      {encoding ? "Converting..." : "Download MP3"}
+    </Button>
+  );
+}
+
 export default function Mixer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -285,8 +359,9 @@ export default function Mixer() {
     return items;
   })();
 
-  const [trackCount, setTrackCount] = useState(2);
-  const [trackKeys, setTrackKeys] = useState<(string | null)[]>([null, null, null, null]);
+  const pendingRestoreRef = useRef<MixerSession["perTrack"] | null>(null);
+  const [trackCount, setTrackCount] = useState(() => readSession().trackCount ?? 2);
+  const [trackKeys, setTrackKeys] = useState<(string | null)[]>(() => readSession().trackKeys ?? [null, null, null, null]);
   const [loadedAudioUrls, setLoadedAudioUrls] = useState<(string | null)[]>([]);
   const [mixTitle, setMixTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -304,6 +379,38 @@ export default function Mixer() {
 
   const isLoaded = !["idle", "loading"].includes(state);
   const isActive = state === "playing";
+
+  useEffect(() => {
+    const s = readSession();
+    if (s.fadeIn != null) setFadeInDuration(s.fadeIn);
+    if (s.fadeOut != null) setFadeOutDuration(s.fadeOut);
+    if (s.loop != null) setLoop(s.loop);
+    if (s.clickEnabled != null) setClickEnabled(s.clickEnabled);
+    if (s.bpm != null) setBpm(s.bpm);
+    if (s.recordingMode != null) setRecordingMode(s.recordingMode);
+    if (s.perTrack && s.perTrack.length > 0) pendingRestoreRef.current = s.perTrack;
+  }, []);
+
+  useEffect(() => {
+    if (state === "ready" && pendingRestoreRef.current) {
+      const perTrack = pendingRestoreRef.current;
+      pendingRestoreRef.current = null;
+      perTrack.forEach((t, i) => {
+        setTrackVolume(i, t.volume);
+        setTrackPan(i, t.pan);
+        setTrackMuted(i, t.muted);
+        setTrackSoloed(i, t.soloed);
+        setTrackOffset(i, t.offset);
+        setTrackReverbWet(i, t.reverbWet);
+        setTrackEqBass(i, t.eqBass);
+        setTrackEqTreble(i, t.eqTreble);
+      });
+    }
+  }, [state]);
+
+  useEffect(() => {
+    writeSession({ trackCount, trackKeys, fadeIn: fadeInDuration, fadeOut: fadeOutDuration, loop, clickEnabled, bpm, recordingMode, perTrack: hookTracks.map(t => ({ ...t })) });
+  }, [trackCount, trackKeys, fadeInDuration, fadeOutDuration, loop, clickEnabled, bpm, recordingMode, hookTracks]);
 
   const setTrackKey = (i: number, key: string | null) => {
     setTrackKeys(prev => prev.map((k, idx) => idx === i ? key : k));
@@ -637,6 +744,7 @@ export default function Mixer() {
                 >
                   <Download className="w-4 h-4" /> Download WAV
                 </Button>
+                <MixMp3Button blob={recordedBlob} title={mixTitle} />
                 <Button variant="ghost" onClick={() => reset()} disabled={isSaving} className="ml-auto text-muted-foreground">Record Again</Button>
               </div>
             </div>

@@ -156,7 +156,7 @@ export default function StudioScreen() {
 
     setIsSaving(true);
     try {
-      const mimeType = Platform.OS === "ios" ? "audio/m4a" : "audio/webm";
+      const mimeType = "audio/m4a";
       await saveLocalSong({
         title: title.trim(),
         tags: tags.trim(),

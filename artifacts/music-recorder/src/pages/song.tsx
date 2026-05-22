@@ -4,6 +4,7 @@ import { useCreateSong } from "@workspace/api-client-react";
 import {
   Play, Pause, Trash, Clock, Calendar, Save, ArrowLeft, Loader2, Download, Gauge, Share2, Copy, Check, HardDrive,
 } from "lucide-react";
+import { wavBlobToMp3 } from "@/lib/mp3-encoder";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,6 +41,7 @@ export default function SongDetail() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const [isEncodingMp3, setIsEncodingMp3] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
@@ -109,6 +111,26 @@ export default function SongDetail() {
     a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadMp3 = async () => {
+    if (!song) return;
+    const blob = await getLocalBlob(song.id);
+    if (!blob) return;
+    setIsEncodingMp3(true);
+    try {
+      const mp3 = await wavBlobToMp3(blob);
+      const url = URL.createObjectURL(mp3);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${song.title.replace(/[^a-z0-9]/gi, "_")}.mp3`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "MP3 conversion failed", description: "Try downloading as WAV instead.", variant: "destructive" });
+    } finally {
+      setIsEncodingMp3(false);
+    }
   };
 
   const formatDuration = (seconds: number | null | undefined) => {
@@ -429,7 +451,16 @@ export default function SongDetail() {
               onClick={handleDownload}
             >
               <Download className="w-4 h-4" />
-              Download Audio
+              Download WAV
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={handleDownloadMp3}
+              disabled={isEncodingMp3}
+            >
+              {isEncodingMp3 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isEncodingMp3 ? "Converting..." : "Download MP3"}
             </Button>
 
             <div className="h-px bg-border my-2" />
