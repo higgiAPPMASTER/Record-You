@@ -21,7 +21,7 @@
     },
     "android": {
       "package": "com.recordyou.app",
-      "versionCode": 1,
+      "versionCode": 21,
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
