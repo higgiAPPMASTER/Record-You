@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { useListSongs, useDeleteSong, getListSongsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag, Cloud, HardDrive } from "lucide-react";
+import { Play, Pause, Mic, Clock, Calendar, MoreVertical, Trash, Edit3, Search, Download, X, Tag, Cloud, HardDrive, PackageOpen, Loader2 } from "lucide-react";
 import { ImportAudioButton } from "@/components/import-audio-button";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -202,6 +202,52 @@ export default function Home() {
     }
   };
 
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState("");
+
+  const handleExportAll = async () => {
+    if (songs.length === 0) return;
+    setExporting(true);
+    setExportProgress("Starting…");
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (let i = 0; i < songs.length; i++) {
+        const song = songs[i];
+        setExportProgress(`Fetching ${i + 1} of ${songs.length}: ${song.title}`);
+        try {
+          let blob: Blob | null = null;
+          if (song.source === "local") {
+            blob = await getLocalBlob(String(song.id));
+          } else if (song.audioUrl) {
+            const res = await fetch(song.audioUrl);
+            blob = await res.blob();
+          }
+          if (!blob) continue;
+          const ext = song.mimeType?.includes("m4a") || song.mimeType?.includes("mp4") ? "m4a" : "wav";
+          const safeName = song.title.replace(/[^a-z0-9]/gi, "_");
+          zip.file(`${safeName}_${i + 1}.${ext}`, blob);
+        } catch {
+          // skip failed file, continue
+        }
+      }
+      setExportProgress("Building zip…");
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `record-you-library.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Export complete", description: `${songs.length} tracks downloaded.` });
+    } catch {
+      toast({ title: "Export failed", description: "Something went wrong. Try again.", variant: "destructive" });
+    } finally {
+      setExporting(false);
+      setExportProgress("");
+    }
+  };
+
   const handleDownload = async (song: UnifiedSong) => {
     let blob: Blob | null = null;
     if (song.source === "local") {
@@ -238,6 +284,21 @@ export default function Home() {
           <p className="text-muted-foreground text-lg">Your recordings — device + cloud.</p>
         </div>
         <div className="flex items-center gap-2">
+          {songs.length > 0 && (
+            <Button
+              variant="outline"
+              size="lg"
+              className="rounded-full px-5 gap-2 font-medium"
+              onClick={handleExportAll}
+              disabled={exporting}
+              title="Download all tracks as a ZIP"
+            >
+              {exporting
+                ? <><Loader2 className="w-4 h-4 animate-spin" />{exportProgress || "Exporting…"}</>
+                : <><PackageOpen className="w-4 h-4" />Export All</>
+              }
+            </Button>
+          )}
           <ImportAudioButton onImported={() => setLocalSongs(listLocalSongs())} />
           <Button asChild size="lg" className="rounded-full px-8 gap-2 font-medium">
             <Link href="/record">
