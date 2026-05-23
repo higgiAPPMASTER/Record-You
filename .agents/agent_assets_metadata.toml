@@ -11,3 +11,9 @@ id = "--VS7ch4CNN3bTz3TIsNd"
 uri = "file://record-you-project.tar.gz"
 type = "unspecified"
 title = "Record You — Full Project Source"
+
+[[outputs]]
+id = "vdEjNy63RpOuNEIzqsd-Y"
+uri = "file://record-you-project.zip"
+type = "unspecified"
+title = "Record You — Full Project Source (.zip)"
