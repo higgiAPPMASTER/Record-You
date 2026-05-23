@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "RZ2ZwUbP4mYklvCnyS5VC"
 uri = "file://artifacts/record-you-mobile/assets/images/icon.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "--VS7ch4CNN3bTz3TIsNd"
+uri = "file://record-you-project.tar.gz"
+type = "unspecified"
+title = "Record You — Full Project Source"
