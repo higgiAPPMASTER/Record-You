@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { listLocalSongs, saveLocalSong, type LocalSong } from "@/lib/recordings";
@@ -60,6 +62,7 @@ function rampVolume(
 
 export default function MixerScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { data: cloudSongs = [] } = useListSongs();
   const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
 
@@ -337,7 +340,7 @@ export default function MixerScreen() {
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    scroll: { padding: 16, paddingBottom: 120 },
+    scroll: { padding: 16, paddingBottom: Platform.OS === "web" ? 120 : insets.bottom + 120 },
     slotCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, padding: 16, marginBottom: 10, gap: 10 },
     slotHead: { flexDirection: "row", alignItems: "center", gap: 8 },
     slotLetter: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary + "30", alignItems: "center", justifyContent: "center" },
