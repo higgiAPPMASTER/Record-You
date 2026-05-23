@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Audio } from "expo-av";
-import Slider from "@react-native-community/slider";
+import { JsSlider as Slider } from "@/components/JsSlider";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,

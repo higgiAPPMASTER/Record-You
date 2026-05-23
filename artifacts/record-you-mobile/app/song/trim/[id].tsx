@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import Slider from "@react-native-community/slider";
+import { JsSlider as Slider } from "@/components/JsSlider";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
