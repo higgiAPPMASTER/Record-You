@@ -23,3 +23,9 @@ id = "AKNcvfZ6O5Aa0nThX91Xc"
 uri = "file://artifacts/record-you-mobile/assets/images/icon_square.png"
 type = "image"
 title = "Record You - Play Store Icon (square)"
+
+[[outputs]]
+id = "DQ6ILGDwI3KAtHOkQxpk7"
+uri = "file://attached_assets/feature_graphic.jpg"
+type = "image"
+title = "Record You - Feature Graphic (1024×500)"
