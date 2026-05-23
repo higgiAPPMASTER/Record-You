@@ -340,7 +340,7 @@ export default function MixerScreen() {
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    scroll: { padding: 16, paddingBottom: Platform.OS === "web" ? 120 : insets.bottom + 120 },
+    scroll: { padding: 16, paddingBottom: Platform.OS === "web" ? 120 : Math.max(insets.bottom + 140, 200) },
     slotCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, padding: 16, marginBottom: 10, gap: 10 },
     slotHead: { flexDirection: "row", alignItems: "center", gap: 8 },
     slotLetter: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary + "30", alignItems: "center", justifyContent: "center" },
@@ -381,7 +381,8 @@ export default function MixerScreen() {
     saveSecondary: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
     saveSecondaryText: { color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 14 },
     pickerBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
-    pickerSheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, maxHeight: "70%" },
+    pickerSheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, maxHeight: "80%" },
+    pickerScroll: { paddingBottom: insets.bottom + 16 },
     pickerTitle: { fontSize: 16, color: colors.foreground, fontFamily: "Inter_600SemiBold", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
     songRow: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 },
     songTitle: { flex: 1, color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 },
@@ -649,7 +650,7 @@ export default function MixerScreen() {
         <Pressable style={s.pickerBg} onPress={() => setPickerOpen(null)}>
           <Pressable style={s.pickerSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={s.pickerTitle}>Choose track for slot {pickerOpen?.toUpperCase()}</Text>
-            <ScrollView>
+            <ScrollView contentContainerStyle={s.pickerScroll}>
               {allSongs.length === 0 ? (
                 <View style={{ padding: 24, alignItems: "center" }}>
                   <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium" }}>
