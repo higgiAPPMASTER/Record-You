@@ -14,6 +14,7 @@ import Chords from "@/pages/chords";
 import Tabs from "@/pages/tabs";
 import Capo from "@/pages/capo";
 import Trim from "@/pages/trim";
+import Privacy from "@/pages/privacy";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ function Router() {
         <Route path="/chords" component={Chords} />
         <Route path="/tabs" component={Tabs} />
         <Route path="/capo" component={Capo} />
+        <Route path="/privacy" component={Privacy} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
