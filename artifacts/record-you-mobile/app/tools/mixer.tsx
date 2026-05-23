@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import Slider from "@react-native-community/slider";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -432,6 +433,17 @@ export default function MixerScreen() {
 
         <View style={s.section}>
           <Text style={s.sectionLabel}>Volume · {Math.round(t.volume * 100)}%</Text>
+          <Slider
+            style={{ width: "100%", height: 36 }}
+            minimumValue={0}
+            maximumValue={1}
+            step={0.01}
+            value={t.volume}
+            onValueChange={(v) => setVolume(slot, v)}
+            minimumTrackTintColor={slotColor}
+            maximumTrackTintColor={colors.border}
+            thumbTintColor={slotColor}
+          />
           <View style={s.volRow}>
             {[0, 0.25, 0.5, 0.75, 1].map((v) => (
               <Pressable
