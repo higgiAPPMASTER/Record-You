@@ -104,6 +104,50 @@ export interface TakeUpdate {
   offsetMs?: number;
 }
 
+export interface Musician {
+  id: number;
+  name: string;
+  instrument: string;
+  /** @nullable */
+  genre?: string | null;
+  city: string;
+  /** @nullable */
+  bio?: string | null;
+  /** @nullable */
+  contactEmail?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  createdAt: string;
+}
+
+export interface MusicianInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  instrument: string;
+  /** @maxLength 80 */
+  genre?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  city: string;
+  /** @maxLength 500 */
+  bio?: string;
+  /** @maxLength 120 */
+  contactEmail?: string;
+  lat?: number;
+  lng?: number;
+}
+
 export interface SongStats {
   totalSongs: number;
   /** Total duration of all songs in seconds */
@@ -111,4 +155,13 @@ export interface SongStats {
   songsWithAudio: number;
   recentSongs: Song[];
 }
+
+export type ListMusiciansParams = {
+lat?: number;
+lng?: number;
+/**
+ * Radius in km (default 100)
+ */
+radius?: number;
+};
 

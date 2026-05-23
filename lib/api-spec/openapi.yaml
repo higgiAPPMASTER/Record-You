@@ -16,7 +16,104 @@ tags:
     description: Feedback comments on shared songs
   - name: takes
     description: Collaborator audio layers added to a song
+  - name: musicians
+    description: Musician profiles for local discovery
 paths:
+  /musicians:
+    get:
+      operationId: listMusicians
+      tags: [musicians]
+      summary: List musician profiles
+      parameters:
+        - in: query
+          name: lat
+          schema: { type: number }
+        - in: query
+          name: lng
+          schema: { type: number }
+        - in: query
+          name: radius
+          schema: { type: number }
+          description: Radius in km (default 100)
+      responses:
+        "200":
+          description: List of musicians
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Musician"
+    post:
+      operationId: createMusician
+      tags: [musicians]
+      summary: Create a musician profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MusicianInput"
+      responses:
+        "201":
+          description: Created musician
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Musician"
+
+  /musicians/{id}:
+    get:
+      operationId: getMusician
+      tags: [musicians]
+      summary: Get a musician profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Musician profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Musician"
+    patch:
+      operationId: updateMusician
+      tags: [musicians]
+      summary: Update a musician profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MusicianInput"
+      responses:
+        "200":
+          description: Updated musician
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Musician"
+    delete:
+      operationId: deleteMusician
+      tags: [musicians]
+      summary: Delete a musician profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+
   /healthz:
     get:
       operationId: healthCheck
@@ -437,6 +534,62 @@ components:
           type: integer
           minimum: -5000
           maximum: 5000
+
+    Musician:
+      type: object
+      required: [id, name, instrument, city, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        instrument:
+          type: string
+        genre:
+          type: ["string", "null"]
+        city:
+          type: string
+        bio:
+          type: ["string", "null"]
+        contactEmail:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    MusicianInput:
+      type: object
+      required: [name, instrument, city]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        instrument:
+          type: string
+          minLength: 1
+          maxLength: 80
+        genre:
+          type: string
+          maxLength: 80
+        city:
+          type: string
+          minLength: 1
+          maxLength: 100
+        bio:
+          type: string
+          maxLength: 500
+        contactEmail:
+          type: string
+          maxLength: 120
+        lat:
+          type: number
+        lng:
+          type: number
 
     SongStats:
       type: object

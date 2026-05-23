@@ -9,6 +9,134 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary List musician profiles
+ */
+export const ListMusiciansQueryParams = zod.object({
+  "lat": zod.coerce.number().optional(),
+  "lng": zod.coerce.number().optional(),
+  "radius": zod.coerce.number().optional().describe('Radius in km (default 100)')
+})
+
+export const ListMusiciansResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "instrument": zod.string(),
+  "genre": zod.string().nullish(),
+  "city": zod.string(),
+  "bio": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMusiciansResponse = zod.array(ListMusiciansResponseItem)
+
+
+/**
+ * @summary Create a musician profile
+ */
+export const createMusicianBodyNameMax = 80;
+
+export const createMusicianBodyInstrumentMax = 80;
+
+export const createMusicianBodyGenreMax = 80;
+
+export const createMusicianBodyCityMax = 100;
+
+export const createMusicianBodyBioMax = 500;
+
+export const createMusicianBodyContactEmailMax = 120;
+
+
+
+export const CreateMusicianBody = zod.object({
+  "name": zod.string().min(1).max(createMusicianBodyNameMax),
+  "instrument": zod.string().min(1).max(createMusicianBodyInstrumentMax),
+  "genre": zod.string().max(createMusicianBodyGenreMax).optional(),
+  "city": zod.string().min(1).max(createMusicianBodyCityMax),
+  "bio": zod.string().max(createMusicianBodyBioMax).optional(),
+  "contactEmail": zod.string().max(createMusicianBodyContactEmailMax).optional(),
+  "lat": zod.number().optional(),
+  "lng": zod.number().optional()
+})
+
+
+/**
+ * @summary Get a musician profile
+ */
+export const GetMusicianParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMusicianResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "instrument": zod.string(),
+  "genre": zod.string().nullish(),
+  "city": zod.string(),
+  "bio": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a musician profile
+ */
+export const UpdateMusicianParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateMusicianBodyNameMax = 80;
+
+export const updateMusicianBodyInstrumentMax = 80;
+
+export const updateMusicianBodyGenreMax = 80;
+
+export const updateMusicianBodyCityMax = 100;
+
+export const updateMusicianBodyBioMax = 500;
+
+export const updateMusicianBodyContactEmailMax = 120;
+
+
+
+export const UpdateMusicianBody = zod.object({
+  "name": zod.string().min(1).max(updateMusicianBodyNameMax),
+  "instrument": zod.string().min(1).max(updateMusicianBodyInstrumentMax),
+  "genre": zod.string().max(updateMusicianBodyGenreMax).optional(),
+  "city": zod.string().min(1).max(updateMusicianBodyCityMax),
+  "bio": zod.string().max(updateMusicianBodyBioMax).optional(),
+  "contactEmail": zod.string().max(updateMusicianBodyContactEmailMax).optional(),
+  "lat": zod.number().optional(),
+  "lng": zod.number().optional()
+})
+
+export const UpdateMusicianResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "instrument": zod.string(),
+  "genre": zod.string().nullish(),
+  "city": zod.string(),
+  "bio": zod.string().nullish(),
+  "contactEmail": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a musician profile
+ */
+export const DeleteMusicianParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

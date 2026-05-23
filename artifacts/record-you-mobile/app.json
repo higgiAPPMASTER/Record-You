@@ -41,7 +41,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Record You uses your location to show musicians near you."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

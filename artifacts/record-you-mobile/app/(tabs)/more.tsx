@@ -15,6 +15,7 @@ type ToolItem = {
 };
 
 const TOOLS: ToolItem[] = [
+  { key: "musicians", title: "Musicians Near Me", desc: "Find and connect with local musicians", icon: "users", route: "/tools/musicians" },
   { key: "mixer", title: "Mixer", desc: "Layer two tracks with volume control", icon: "sliders", route: "/tools/mixer" },
   { key: "metronome", title: "Metronome", desc: "Keep the beat with tap-tempo", icon: "clock", route: "/tools/metronome" },
   { key: "capo", title: "Capo Calculator", desc: "Find capo positions and sounding keys", icon: "anchor", route: "/tools/capo" },

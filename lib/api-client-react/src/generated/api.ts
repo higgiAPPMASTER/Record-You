@@ -23,6 +23,9 @@ import type {
   Comment,
   CommentInput,
   HealthStatus,
+  ListMusiciansParams,
+  Musician,
+  MusicianInput,
   Song,
   SongInput,
   SongStats,
@@ -42,6 +45,380 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
+
+export const getListMusiciansUrl = (params?: ListMusiciansParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/musicians?${stringifiedParams}` : `/api/musicians`
+}
+
+/**
+ * @summary List musician profiles
+ */
+export const listMusicians = async (params?: ListMusiciansParams, options?: RequestInit): Promise<Musician[]> => {
+
+  return customFetch<Musician[]>(getListMusiciansUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMusiciansQueryKey = (params?: ListMusiciansParams,) => {
+    return [
+    `/api/musicians`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMusiciansQueryOptions = <TData = Awaited<ReturnType<typeof listMusicians>>, TError = ErrorType<unknown>>(params?: ListMusiciansParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMusicians>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMusiciansQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMusicians>>> = ({ signal }) => listMusicians(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMusicians>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMusiciansQueryResult = NonNullable<Awaited<ReturnType<typeof listMusicians>>>
+export type ListMusiciansQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List musician profiles
+ */
+
+export function useListMusicians<TData = Awaited<ReturnType<typeof listMusicians>>, TError = ErrorType<unknown>>(
+ params?: ListMusiciansParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMusicians>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMusiciansQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateMusicianUrl = () => {
+
+
+
+
+  return `/api/musicians`
+}
+
+/**
+ * @summary Create a musician profile
+ */
+export const createMusician = async (musicianInput: MusicianInput, options?: RequestInit): Promise<Musician> => {
+
+  return customFetch<Musician>(getCreateMusicianUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      musicianInput,)
+  }
+);}
+
+
+
+
+export const getCreateMusicianMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMusician>>, TError,{data: BodyType<MusicianInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMusician>>, TError,{data: BodyType<MusicianInput>}, TContext> => {
+
+const mutationKey = ['createMusician'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMusician>>, {data: BodyType<MusicianInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMusician(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMusicianMutationResult = NonNullable<Awaited<ReturnType<typeof createMusician>>>
+    export type CreateMusicianMutationBody = BodyType<MusicianInput>
+    export type CreateMusicianMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a musician profile
+ */
+export const useCreateMusician = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMusician>>, TError,{data: BodyType<MusicianInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMusician>>,
+        TError,
+        {data: BodyType<MusicianInput>},
+        TContext
+      > => {
+      return useMutation(getCreateMusicianMutationOptions(options));
+    }
+
+export const getGetMusicianUrl = (id: number,) => {
+
+
+
+
+  return `/api/musicians/${id}`
+}
+
+/**
+ * @summary Get a musician profile
+ */
+export const getMusician = async (id: number, options?: RequestInit): Promise<Musician> => {
+
+  return customFetch<Musician>(getGetMusicianUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMusicianQueryKey = (id: number,) => {
+    return [
+    `/api/musicians/${id}`
+    ] as const;
+    }
+
+
+export const getGetMusicianQueryOptions = <TData = Awaited<ReturnType<typeof getMusician>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMusician>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMusicianQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMusician>>> = ({ signal }) => getMusician(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMusician>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMusicianQueryResult = NonNullable<Awaited<ReturnType<typeof getMusician>>>
+export type GetMusicianQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a musician profile
+ */
+
+export function useGetMusician<TData = Awaited<ReturnType<typeof getMusician>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMusician>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMusicianQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateMusicianUrl = (id: number,) => {
+
+
+
+
+  return `/api/musicians/${id}`
+}
+
+/**
+ * @summary Update a musician profile
+ */
+export const updateMusician = async (id: number,
+    musicianInput: MusicianInput, options?: RequestInit): Promise<Musician> => {
+
+  return customFetch<Musician>(getUpdateMusicianUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      musicianInput,)
+  }
+);}
+
+
+
+
+export const getUpdateMusicianMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMusician>>, TError,{id: number;data: BodyType<MusicianInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMusician>>, TError,{id: number;data: BodyType<MusicianInput>}, TContext> => {
+
+const mutationKey = ['updateMusician'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMusician>>, {id: number;data: BodyType<MusicianInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateMusician(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMusicianMutationResult = NonNullable<Awaited<ReturnType<typeof updateMusician>>>
+    export type UpdateMusicianMutationBody = BodyType<MusicianInput>
+    export type UpdateMusicianMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a musician profile
+ */
+export const useUpdateMusician = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMusician>>, TError,{id: number;data: BodyType<MusicianInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMusician>>,
+        TError,
+        {id: number;data: BodyType<MusicianInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateMusicianMutationOptions(options));
+    }
+
+export const getDeleteMusicianUrl = (id: number,) => {
+
+
+
+
+  return `/api/musicians/${id}`
+}
+
+/**
+ * @summary Delete a musician profile
+ */
+export const deleteMusician = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteMusicianUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteMusicianMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMusician>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMusician>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteMusician'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMusician>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMusician(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMusicianMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMusician>>>
+
+    export type DeleteMusicianMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a musician profile
+ */
+export const useDeleteMusician = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMusician>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMusician>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteMusicianMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 
