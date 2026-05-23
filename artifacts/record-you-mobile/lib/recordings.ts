@@ -17,6 +17,8 @@ export interface LocalSong {
   createdAt: number;
   updatedAt: number;
   cloudId: number | null;
+  trimStart?: number;
+  trimEnd?: number;
 }
 
 async function readSongs(): Promise<LocalSong[]> {
@@ -112,7 +114,7 @@ export async function saveLocalSong(input: SaveSongInput): Promise<LocalSong> {
 
 export async function updateLocalSong(
   id: string,
-  patch: Partial<Pick<LocalSong, "title" | "tags" | "notes" | "cloudId">>
+  patch: Partial<Pick<LocalSong, "title" | "tags" | "notes" | "cloudId" | "trimStart" | "trimEnd">>
 ): Promise<LocalSong | null> {
   const songs = await readSongs();
   const idx = songs.findIndex((s) => s.id === id);

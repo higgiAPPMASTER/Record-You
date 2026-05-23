@@ -54,11 +54,13 @@ export default function SongDetailScreen() {
   const [currentTime, setCurrentTime] = useState(0);
 
   const soundRef = useRef<Audio.Sound | null>(null);
+  const trimEndRef = useRef<number>(0);
 
   useEffect(() => {
     if (!songId) return;
     getLocalSong(songId).then((s) => {
       setSong(s);
+      if (s) trimEndRef.current = s.trimEnd ?? s.duration;
       setIsLoading(false);
     });
   }, [songId]);
@@ -96,21 +98,27 @@ export default function SongDetailScreen() {
 
     try {
       setIsLoadingAudio(true);
+      const startSec = song.trimStart ?? 0;
+      trimEndRef.current = song.trimEnd ?? song.duration;
       const { sound } = await Audio.Sound.createAsync(
         { uri: song.uri },
-        { shouldPlay: true }
+        { shouldPlay: false }
       );
       soundRef.current = sound;
+      if (startSec > 0) await sound.setPositionAsync(startSec * 1000);
+      await sound.playAsync();
       setIsPlaying(true);
+      setCurrentTime(startSec);
       setIsLoadingAudio(false);
 
       sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded) {
-          setCurrentTime(status.positionMillis / 1000);
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            setCurrentTime(0);
-          }
+        if (!status.isLoaded) return;
+        const pos = status.positionMillis / 1000;
+        setCurrentTime(pos);
+        if (pos >= trimEndRef.current || status.didJustFinish) {
+          sound.pauseAsync().catch(() => {});
+          setIsPlaying(false);
+          setCurrentTime(song.trimStart ?? 0);
         }
       });
     } catch {
@@ -325,7 +333,11 @@ export default function SongDetailScreen() {
   }
 
   const duration = song.duration ?? 0;
-  const progress = duration > 0 ? currentTime / duration : 0;
+  const trimStart = song.trimStart ?? 0;
+  const trimEnd = song.trimEnd ?? duration;
+  const trimmedDuration = Math.max(0.001, trimEnd - trimStart);
+  const isTrimmed = trimStart > 0 || trimEnd < duration - 0.05;
+  const progress = trimmedDuration > 0 ? Math.max(0, Math.min(1, (currentTime - trimStart) / trimmedDuration)) : 0;
 
   return (
     <KeyboardAvoidingView
@@ -339,6 +351,9 @@ export default function SongDetailScreen() {
         <Text style={styles.topBarTitle} numberOfLines={1}>
           {song.title}
         </Text>
+        <Pressable style={styles.iconBtn} onPress={() => router.push(`/song/trim/${song.id}` as any)}>
+          <Feather name="scissors" size={20} color={colors.primary} />
+        </Pressable>
         <Pressable style={styles.iconBtn} onPress={handleShare}>
           <Feather name="share-2" size={20} color={colors.primary} />
         </Pressable>
@@ -373,6 +388,13 @@ export default function SongDetailScreen() {
               {formatDuration(duration)}
             </Text>
           </View>
+          {isTrimmed && (
+            <View style={{ marginTop: 8, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, backgroundColor: colors.primary + "20", alignSelf: "center" }}>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+                ✂ Trimmed · {formatDuration(trimmedDuration)}
+              </Text>
+            </View>
+          )}
           <Text style={styles.storageNote}>
             Saved on device · {formatBytes(song.bytes)}
           </Text>
