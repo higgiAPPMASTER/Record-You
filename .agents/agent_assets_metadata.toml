@@ -35,3 +35,15 @@ id = "iX5bx-tKlMm1nXr08QSFo"
 uri = "file://attached_assets/feature_graphic_gold.jpg"
 type = "image"
 title = "Option A — Pirates gold text (#FDB827)"
+
+[[outputs]]
+id = "qNuU1dVjFFbUWk-YYPcoV"
+uri = "file://attached_assets/feature_graphic_final.jpg"
+type = "image"
+title = "Feature Graphic — final (1024×500)"
+
+[[outputs]]
+id = "HOTmpMAgNJEX05YaPL9bH"
+uri = "file://artifacts/record-you-mobile/assets/images/icon_gold_square.png"
+type = "image"
+title = "App Icon — gold square (Play Store upload)"
