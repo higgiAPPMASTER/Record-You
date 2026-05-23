@@ -28,4 +28,10 @@ title = "Record You - Play Store Icon (square)"
 id = "DQ6ILGDwI3KAtHOkQxpk7"
 uri = "file://attached_assets/feature_graphic.jpg"
 type = "image"
-title = "Record You - Feature Graphic (1024×500)"
+title = "Option B — Orange text (matches icon)"
+
+[[outputs]]
+id = "iX5bx-tKlMm1nXr08QSFo"
+uri = "file://attached_assets/feature_graphic_gold.jpg"
+type = "image"
+title = "Option A — Pirates gold text (#FDB827)"
